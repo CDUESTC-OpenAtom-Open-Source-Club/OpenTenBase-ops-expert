@@ -7,7 +7,7 @@ opentenbase-deploy 辅助脚本：OpenTenBase 环境检查与状态验证工具�
     python3 {baseDir}/scripts/opentenbase_deploy.py --action check
 
     # 状态验证（部署后）：检查集群节点状态与连接
-    python3 {baseDir}/scripts/opentenbase_deploy.py --action status [--port 5432] [--user opentenbase] [--db postgres]
+    python3 {baseDir}/scripts/opentenbase_deploy.py --action status [--port 11003] [--user opentenbase] [--db postgres]
 
 仅依赖标准库，建议 Python 3.10+。
 本脚本只做检查与验证，不执行实际安装/部署（由 AI 通过 SSH 接管）。
@@ -149,7 +149,7 @@ def check_env():
     rc, out, _ = run("ss -tlnp")
     occupied = []
     if rc == 0:
-        for port in ("5432", "5433", "5434", "5435"):
+        for port in ("11003", "6666", "15432", "6669", "6670"):
             if port in out:
                 occupied.append(port)
     port_ok = len(occupied) == 0
@@ -163,8 +163,11 @@ def check_env():
         blocker=False)
 
     # 已安装
-    rc, _, _ = run("which opentenbase-ctl")
+    rc, _, _ = run("which opentenbase_ctl")
     installed = rc == 0
+    if not installed:
+        rc2, _, _ = run("test -x /usr/lib/opentenbase/5.0/bin/opentenbase_ctl")
+        installed = rc2 == 0
     add("installed", True, "已安装" if installed else "未安装",
         blocker=False)
 
@@ -191,15 +194,18 @@ def check_status(port, user, db):
             result["deploy_ok"] = False
 
     # ctl 存在
-    rc, _, _ = run("which opentenbase-ctl")
-    add("ctl_exists", rc == 0, "opentenbase-ctl 存在" if rc == 0 else "未找到 opentenbase-ctl",
+    rc, _, _ = run("which opentenbase_ctl")
+    if rc != 0:
+        rc, _, _ = run("test -x /usr/lib/opentenbase/5.0/bin/opentenbase_ctl && echo ok")
+    add("ctl_exists", rc == 0, "opentenbase_ctl 存在" if rc == 0 else "未找到 opentenbase_ctl",
         critical=True)
     if rc != 0:
         result["status"] = "fail"
         return result
 
-    # status
-    rc, out, err = run("sudo opentenbase-ctl status")
+    # status（所有命令需要 -c 参数）
+    config_file = "/tmp/opentenbase_config.ini"
+    rc, out, err = run(f"opentenbase_ctl status -c {config_file}")
     add("cluster_status", rc == 0,
         out if rc == 0 else (err or "status 失败"),
         critical=True)
@@ -211,11 +217,25 @@ def check_status(port, user, db):
             f"running 计数={running}（期望 GTM+Coordinator+Datanode）",
             critical=True)
 
-    # 连接
-    psql = shutil.which("opentenbase-psql") or shutil.which("psql")
+    # 连接（优先使用运行时路径的 psql）
+    run_lib = "/var/lib/opentenbase/install/opentenbase/5.0/lib"
+    run_bin = "/var/lib/opentenbase/install/opentenbase/5.0/bin"
+    psql = ""
+    if os.path.isfile(f"{run_bin}/psql") and os.access(f"{run_bin}/psql", os.X_OK):
+        psql = f"{run_bin}/psql"
+    if not psql:
+        psql = shutil.which("opentenbase-psql") or shutil.which("psql")
+    if not psql:
+        otb_psql = "/usr/lib/opentenbase/5.0/bin/psql"
+        if os.path.isfile(otb_psql) and os.access(otb_psql, os.X_OK):
+            psql = otb_psql
     if psql:
+        # 设置 LD_LIBRARY_PATH 以解析运行时库
+        env_prefix = ""
+        if os.path.isdir(run_lib):
+            env_prefix = f"LD_LIBRARY_PATH={run_lib} "
         rc, out, err = run(
-            f"{psql} -h 127.0.0.1 -p {port} -U {user} -d {db} -c 'SELECT version();'"
+            f"{env_prefix}{psql} -h 127.0.0.1 -p {port} -U {user} -d {db} -c 'SELECT version();'"
         )
         add("connection", rc == 0,
             out.splitlines()[0] if rc == 0 and out else (err or "连接失败"),
@@ -232,7 +252,7 @@ def main():
     parser.add_argument("--action", type=str, required=True,
                         choices=["check", "status"],
                         help="check=部署前环境检查；status=部署后状态验证")
-    parser.add_argument("--port", type=int, default=5432, help="Coordinator 端口")
+    parser.add_argument("--port", type=int, default=11003, help="Coordinator 端口")
     parser.add_argument("--user", type=str, default="opentenbase", help="连接用户")
     parser.add_argument("--db", type=str, default="postgres", help="连接数据库")
     parser.add_argument("--output", type=str, default="-", help="输出路径（默认 stdout）")
