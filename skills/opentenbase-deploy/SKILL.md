@@ -21,6 +21,56 @@ user-invocable: true
 - 最新版本：`v5.0-p32`（截至 2026-06，含 GTM 2核修复 + 端口修正 + 全命令 `-c` 支持）
 - 支持 15+ 发行版（Ubuntu/Debian/Rocky/AlmaLinux/CentOS Stream/Fedora/openEuler），x86_64 与 aarch64
 
+## 版本与集群管理工具
+
+当前支持三个版本，分两套控制链路：
+
+| 版本 | 集群管理工具 | 底层工具（内部） | CN 端口 | 说明 |
+|------|------------|----------------|---------|------|
+| **2.5** | `pgxc_ctl` | `pg_ctl` | 5432 | 旧版 Postgres-XL 链路 |
+| **2.6** | `pgxc_ctl` | `pg_ctl` | 5432 | 同上，含功能增强 |
+| **5.0** | `opentenbase_ctl` | `pg_ctl` | **11003** | 新版链路，所有命令需 `-c` 参数 |
+
+> **核心原则**：用户和自动化脚本 **只与集群管理工具交互**，不直接调用 `pg_ctl`/`initdb`。`pgxc_ctl` 和 `opentenbase_ctl` 各自封装了底层操作（节点注册、GTM 配置、initdb 调用）。
+
+### pgxc_ctl（2.5 / 2.6）
+
+```bash
+# 部署集群
+pgxc_ctl deploy -c pgxc_ctl.conf
+
+# 初始化节点
+pgxc_ctl init -c pgxc_ctl.conf
+
+# 启停/监控
+pgxc_ctl start -c pgxc_ctl.conf
+pgxc_ctl stop -c pgxc_ctl.conf
+pgxc_ctl monitor -c pgxc_ctl.conf
+
+# 查看状态
+pgxc_ctl show cluster -c pgxc_ctl.conf
+```
+
+配置文件模板：`pgxc_ctl.conf`（含 `GTM_HOST`、`GTM_PORT`、节点拓扑定义）。
+
+> **⚠️ 已知问题**：2.5/2.6 的 `initdb` 在 bootstrap 阶段会执行 `create gtm node` 注册 GTM，但它自身没有 `--gtmhost`/`--gtmport` 参数。**必须通过 `pgxc_ctl deploy` 或 `pgxc_ctl init` 间接调用 initdb**，由 `pgxc_ctl` 通过环境变量传入 GTM 连接信息。直接调用 `initdb` 会导致 `create gtm node (null)` 语法错误，initdb 失败。
+
+### opentenbase_ctl（5.0）
+
+```bash
+# 所有命令都必须带 -c 参数！
+opentenbase_ctl install -c config.ini   # 安装集群
+opentenbase_ctl start -c config.ini     # 启动
+opentenbase_ctl stop -c config.ini      # 停止
+opentenbase_ctl status -c config.ini    # 查看状态
+opentenbase_ctl delete -c config.ini    # 删除集群
+opentenbase_ctl expand -c config.ini    # 扩容
+opentenbase_ctl shrink -c config.ini    # 缩容
+```
+
+> **5.0 硬性规则**：所有 `opentenbase_ctl` 命令都必须带 `-c config.ini`。不带 `-c` 会报 `Failed to extract version from package name`。
+> SSH 方式通过 `sshpass` + 密码远程执行（无需密钥互信），在 INI 的 `[server]` 段配置 `ssh-user`/`ssh-password`/`ssh-port`。
+
 ---
 
 ## 三种部署方式总览
@@ -28,10 +78,13 @@ user-invocable: true
 | # | 方式 | 定位 | 适用场景 | 交互 |
 |---|------|------|---------|------|
 | **1** | **一键自动化部署** | 白板机器→集群运行，一条命令 | **推荐**，生产/学习/快速体验 | 交互式 + 非交互式 |
-| **2** | **手动安装** | APT/RPM 装包 + `opentenbase_ctl install` | 需要精细控制配置的高级用户 | 手动编辑 INI |
+| **2** | **手动安装** | APT/RPM 装包 + 集群管理工具配置 | 需要精细控制配置的高级用户 | 手动编辑配置 |
 | **3** | **Docker Compose** | 容器隔离，每节点独立 IP | 开发/测试/CI/CD | 一键 `docker compose up` |
 
 **默认推荐方式一**。除非用户明确说"我要手动配置"或"用 Docker"，否则直接走一键部署。
+
+> **版本选择**：当前支持 2.5 / 2.6 / 5.0 三个版本。用户可通过 `--version` 参数指定（默认 5.0）。
+> 各版本的底层集群管理工具不同：2.5/2.6 用 `pgxc_ctl`，5.0 用 `opentenbase_ctl`。更多细节见[多版本自动化部署任务规划文档](../../全版本自动化部署任务规划.md)。
 
 ---
 
@@ -41,10 +94,12 @@ OpenTenBase 是分布式数据库，包含三种节点角色：**GTM**（全局�
 
 | 拓扑 | 架构 | 适用场景 | 支持状态 |
 |------|------|---------|---------|
-| **单节点** | GTM + CN 在同一台机器 | 开发测试、学习 | ✅ 支持（`127.0.0.1`） |
+| **单节点** | GTM + CN + DN 在同一台机器 | 开发测试、学习 | ✅ 支持（`127.0.0.1`） |
 | **多机多节点** | GTM / CN / DN 分布在不同服务器 | 生产环境 | ✅ 支持 |
 | **Docker 多节点** | 每个节点一个容器，独立 IP | 开发测试 | ✅ 支持 |
 | ~~单机多节点~~ | GTM + CN + DN 在同一台物理机 | — | ❌ **不支持** |
+
+> 以上拓扑约束对 **所有版本（2.5 / 2.6 / 5.0）通用**。
 
 ### 为什么单机多节点不支持？
 
@@ -54,29 +109,6 @@ CN 和 DN 都有 **forward manager**（查询转发器），默认绑定 `127.0.
 
 ---
 
-## opentenbase_ctl 命令规则
-
-从 `v5.0-p12` 起，使用官方 C++ 二进制 `opentenbase_ctl`（下划线，非连字符）。
-
-> **重要变更（v3.1.0）**：所有命令都需要 `-c` 配置文件参数，不仅仅是 `install`。
-
-| 命令 | 用途 | 示例 |
-|------|------|------|
-| `install` | 安装集群（initdb + 配置 + 启动 + 节点注册） | `opentenbase_ctl install -c config.ini` |
-| `start` | 启动已安装的集群 | `opentenbase_ctl start -c config.ini` |
-| `stop` | 停止集群 | `opentenbase_ctl stop -c config.ini` |
-| `status` | 查看各节点状态 | `opentenbase_ctl status -c config.ini` |
-| `delete` | 删除集群（停止 + 清理数据） | `opentenbase_ctl delete -c config.ini` |
-| `expand` | 扩容（添加新节点） | `opentenbase_ctl expand -c config.ini` |
-| `shrink` | 缩容（移除节点） | `opentenbase_ctl shrink -c config.ini` |
-
-**关键**：所有命令都必须带 `-c config.ini`。不带 `-c` 会报 `Failed to extract version from package name` 错误。指定单节点：`opentenbase_ctl start -c config.ini -n cn0001`。
-
-### SSH 方式：sshpass（无需密钥互信）
-
-`opentenbase_ctl` 通过 `sshpass` + SSH 账号密码远程执行命令，**不需要配置 SSH 密钥互信**。在 INI 配置文件 `[server]` section 中填写 `ssh-user` / `ssh-password` / `ssh-port` 即可。
-
----
 
 ## 前置条件
 
@@ -124,15 +156,22 @@ python3 {baseDir}/scripts/opentenbase_deploy.py --action check
 - 内存 < 4GB → 停止，告知"内存不足"
 - 端口被占用 → 报告哪个端口被占，询问处理方式
 
-### 阶段二：咨询用户选择部署方式和拓扑
+### 阶段二：咨询用户选择版本、部署方式和拓扑
 
-> OpenTenBase 有三种部署方式：
+> OpenTenBase 支持三个版本，分两套控制链路：
+>
+> | 版本 | 控制工具 | 适用场景 |
+> |------|---------|---------|
+> | **2.5 / 2.6** | `pgxc_ctl` | 旧版兼容、已有 2.x 集群维护 |
+> | **5.0**（默认）| `opentenbase_ctl` | 新部署、生产环境推荐 |
+>
+> 三种部署方式：
 >
 > **方式一：一键自动化部署（推荐）**
 > 白板机器上一条命令搞定，自动装包、配置、安装集群、验证。支持交互式（问你几个问题）和非交互式（全自动）。
 >
 > **方式二：手动安装**
-> 先装软件包，再编辑 INI 配置文件，最后执行 `opentenbase_ctl install`。适合需要精细控制配置的用户。
+> 先装软件包，再编辑集群配置文件，最后执行控制命令。适合需要精细控制配置的用户。
 >
 > **方式三：Docker Compose**
 > 每个节点一个容器，独立 IP，互不冲突。适合开发测试。
@@ -260,9 +299,15 @@ sudo bash deploy-opentenbase.sh --yes \
 
 ---
 
-## 方式二：手动安装（APT/RPM + opentenbase_ctl）
+## 方式二：手动安装
 
 适合需要精细控制配置的用户。
+
+> **版本分流**：
+> - **2.5 / 2.6**：使用 `pgxc_ctl` 链路。安装包后编辑 `pgxc_ctl.conf`，执行 `pgxc_ctl deploy` 部署集群。
+> - **5.0**：使用 `opentenbase_ctl` 链路。安装包后编辑 INI 配置文件，执行 `opentenbase_ctl install -c config.ini`。
+>
+> 以下以 **5.0** 为例（最常用）。2.5/2.6 的详细步骤见[多版本自动化部署任务规划文档](../../全版本自动化部署任务规划.md)。
 
 ### Step 1：安装软件包
 
@@ -674,21 +719,46 @@ sudo cp /usr/lib64/libpqxx* /usr/lib/opentenbase/5.0/lib/ 2>/dev/null || true
 sudo ldconfig
 ```
 
+### 4. 2.5/2.6 initdb create gtm node (null) 语法错误（版本缺陷）
+
+**仅 2.5 / 2.6 受影响**。5.0 无此问题。
+
+**现象**：直接调用 `initdb` 初始化 coordinator 或 datanode 时，bootstrap 阶段报错退出：
+
+```
+FATAL:  syntax error at or near "(" at character 17
+STATEMENT:  create gtm node (null) with (type='gtm', host='(null)',port=(null), primary=1);
+```
+
+**根因**：2.5/2.6 的 `initdb` 在 bootstrap SQL 中强制注册 GTM 节点，但它自身没有 `--gtmhost`/`--gtmport` 参数。当环境变量 `master_gtm_ip`、`master_gtm_port`、`master_gtm_nodename` 未设置时，值默认为 `(null)`，生成非法 SQL。
+
+**解决**：**必须通过 `pgxc_ctl deploy` 或 `pgxc_ctl init` 调用 initdb**，由 `pgxc_ctl` 负责传入 GTM 连接信息。禁止直接调用 `initdb`。
+
+```bash
+# ✅ 正确
+pgxc_ctl deploy -c pgxc_ctl.conf
+
+# ❌ 错误 — 会触发 (null) bug
+initdb --nodename=coord1 --nodetype=coordinator -D /data/coord
+```
+
 ---
 
 ## 端口参考
 
-| 服务 | 默认端口 | 说明 |
-|------|---------|------|
-| GTM | 6666 | 全局事务管理器 |
-| Coordinator (CN) | **11003** | 客户端连接入口（注意：非 5432！） |
-| Datanode (DN) | 15432 | 数据节点 |
-| Pooler | 6669 | 连接池（各节点需不同 IP） |
-| Forward Manager | 6670 | 查询转发器（各节点需不同 IP） |
+| 服务 | 2.5 / 2.6 | 5.0 | 说明 |
+|------|-----------|-----|------|
+| GTM | 6666 | 6666 | 全局事务管理器 |
+| Coordinator (CN) | **5432** | **11003** | 客户端连接入口（版本间端口不同！） |
+| Datanode (DN) | 15432 | 15432 | 数据节点 |
+| Pooler | 6669 | 6669 | 连接池（各节点需不同 IP） |
+| Forward Manager | 6670 | 6670 | 查询转发器（各节点需不同 IP） |
 
-> **端口说明**：`opentenbase_ctl` 部署的单节点集群 CN 监听 **11003**。
-> Docker Compose 部署的 CN 映射到宿主机 **5432**。
-> 连接前请用 `opentenbase_ctl status -c config.ini` 确认端口。
+> **端口说明**：
+> - 2.5/2.6 单节点集群 CN 监听 **5432**（PostgreSQL 传统端口）
+> - 5.0 `opentenbase_ctl` 部署的单节点集群 CN 监听 **11003**
+> - Docker Compose 部署的 CN 映射到宿主机 **5432**（所有版本）
+> - 连接前请用集群管理工具确认端口：`pgxc_ctl monitor`（2.5/2.6）或 `opentenbase_ctl status -c config.ini`（5.0）
 
 ---
 
@@ -710,13 +780,17 @@ python3 {baseDir}/scripts/opentenbase_deploy.py --action status   # 部署后状
 - **不在未验证（status 全 running + psql 可连）的情况下声明部署成功**
 - **部署失败如实告知，不谎报成功**
 - **不自动覆盖已有数据目录**，检测到已安装时先询问用户
-- **不在 `start/stop/status/delete` 后面漏掉 `-c` 参数**（所有命令都需要）
+- **不在 `start/stop/status/delete` 后面漏掉 `-c` 参数**（5.0 所有命令都需要）
+- **2.5/2.6 禁止直接调用 `initdb`**，必须通过 `pgxc_ctl deploy` 间接调用（否则 `create gtm node (null)` bug）
+- **版本混淆**：2.5/2.6 用 `pgxc_ctl`，5.0 用 `opentenbase_ctl`，工具不能混用
+- **2.5/2.6 CN 端口是 5432，5.0 CN 端口是 11003**，连接前确认端口
 
 ---
 
 ## 必读参考
 
 - 仓库 README：`https://github.com/CDUESTC-OpenAtom-Open-Source-Club/OpenTenBase-Packages`
+- 全版本自动化部署任务规划：`../../全版本自动化部署任务规划.md`
 - 上游 opentenbase_ctl 源码：`https://github.com/OpenTenBase/OpenTenBase/tree/v5.0/contrib/opentenbase_ctl`
 - 快速开始：仓库 `docs/QUICKSTART.md`
 - 部署指南：仓库 `docs/07-deployment.md`
