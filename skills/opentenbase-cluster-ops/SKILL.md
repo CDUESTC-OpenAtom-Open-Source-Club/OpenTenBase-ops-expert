@@ -7,7 +7,7 @@ description: 管理已经安装和初始化完成的 OpenTenBase 集群，完成
 
 若集群位于远程 Linux，先使用 `linux-ssh-access`。
 
-本 Skill 适用于已经安装、初始化并配置完成的集群，不负责安装、初始化、扩缩容、故障切换、备份恢复或配置修改。
+本 Skill 适用于已经安装、初始化并配置完成的集群，不负责安装、初始化、故障切换、备份恢复或配置修改。
 
 ## 运行用户
 
@@ -53,6 +53,22 @@ references/manual_start.md
 ```
 
 手动启动时先展示完整节点计划，再按计划执行；不作为自动补救步骤。
+
+涉及 `opentenbase_ctl`、`pgxc_ctl` 配置文件、节点 IP、端口或目录变更时，读取：
+
+```text
+references/config-files.md
+```
+
+默认只读审计配置；修改配置属于高风险操作，必须先备份、展示 diff、说明影响范围并等待用户确认。
+
+用户询问扩容、缩容、增加 CN/DN、删除节点或节点迁移时，读取：
+
+```text
+references/scale-planning.md
+```
+
+默认只做只读评估和执行计划，不自动执行节点增删、`expand`、`shrink`、`add`、`remove`、`CREATE NODE`、`DROP NODE` 或数据重分布。
 
 ## 执行流程
 

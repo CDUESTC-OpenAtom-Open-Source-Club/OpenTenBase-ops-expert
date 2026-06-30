@@ -93,6 +93,12 @@ type -a plugin_ctl 2>/dev/null || true
 plugin_ctl --version
 ```
 
+`plugin_ctl` 不是 OpenTenBase 官方自带命令。找不到时先读 `setup-and-init.md`，从 GitHub 安装：
+
+```text
+https://github.com/iamkuangzhang/opentenbase-plugin_ctl
+```
+
 如果只有源码目录、没有全局入口，可临时使用：
 
 ```bash

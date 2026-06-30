@@ -52,7 +52,7 @@ references/manual-plugin-governance.md
 
 ## 何时读取 reference
 
-- 安装和第一次使用：读取 `references/setup-and-init.md`。
+- 安装、恢复和第一次使用 `plugin_ctl`：读取 `references/setup-and-init.md`。
 - SQL-only 插件创建和演示：读取 `references/sql-plugin-flow.md`。
 - C 插件创建、编译、部署：读取 `references/c-plugin-flow.md`。
 - 解释命令含义、安全边界、故障排查：读取 `references/commands-and-troubleshooting.md`。
@@ -68,7 +68,7 @@ plugin_ctl --version
 plugin_ctl --help
 ```
 
-若找不到 `plugin_ctl`，读取 `references/setup-and-init.md`。
+若找不到 `plugin_ctl`，先读取 `references/setup-and-init.md`，按 GitHub 源码方式安装或恢复。不要把 `plugin_ctl` 当成 OpenTenBase 官方自带命令。
 
 ### 2. 确认 OpenTenBase 已启动
 
