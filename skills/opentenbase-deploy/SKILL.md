@@ -1,7 +1,7 @@
 ---
 name: opentenbase-deploy
-description: 当用户表达"部署 OpenTenBase""装一下 OTB""搭建分布式数据库"等意图时使用。引导用户选择部署方式（一键自动化部署 / 手动安装 / Docker Compose），支持单节点和多机多节点拓扑，完成部署并验证，最后给出连接信息。基于开源仓库 OpenTenBase-Packages。
-version: 3.2.0
+description: 当用户表达"部署 OpenTenBase""装一下 OTB""搭建分布式数据库"等意图时使用。引导用户选择部署方式（一键自动化部署 / 手动安装 / Docker Compose），支持单节点和多机多节点拓扑，覆盖 2.5 / 2.6 / 5.0 三版本与低内存 DN 扩展，完成部署并验证，最后给出连接信息。基于开源仓库 OpenTenBase-Packages（官方最新 v5.0-p32+），直接引用官方脚本（opentenbase.sh 统一入口），不维护本地副本。
+version: 3.4.0
 user-invocable: true
 ---
 
@@ -13,13 +13,79 @@ user-invocable: true
 
 ---
 
+## 这个技能能做什么
+
+**一句话**：把一台（或多台）白板 Linux 服务器，变成一个跑起来的 OpenTenBase 分布式数据库集群，并告诉你怎么连、怎么用。
+
+OpenTenBase 是国产开源**分布式 HTAP 数据库**（基于 PostgreSQL 内核增强）。这个技能帮你完成从 0 到 1 的部署：
+
+| 能力 | 说明 |
+|------|------|
+| **三种部署方式** | 一键自动化（推荐）/ 手动安装 / Docker Compose，按场景选 |
+| **单节点 & 多机多节点** | 学习用单节点（GTM+CN+DN 同机）；生产用多机分布式 |
+| **三版本支持** | 2.5 / 2.6（`pgxc_ctl` 链路）/ 5.0（`opentenbase_ctl` 链路，默认推荐） |
+| **低内存出路** | 1–2GB 小机器也能当 Datanode 加入现有集群 |
+| **环境自检** | 部署前检查内存/磁盘/端口/发行版，主动给推荐而非反问 |
+| **分布式表** | 建表时指定 SHARD（分片）/ REPLICATION（复制）分发策略 |
+| **部署后验证** | status 全 running + psql 连通 + 分布式表 CRUD，才算成功 |
+
+> **不做什么**：不跳过环境检查、不用 root 跑数据库、不在未验证时谎报成功。详见文末「红线」。
+
+---
+
+## ⚡ 30 秒极速部署（单节点，最常见场景）
+
+> 适用：一台 ≥4GB 内存的 Linux 服务器，想最快跑起来一个单节点集群学习/测试。
+> 这是最简单的路径——白板机器，一条命令，全部默认值。
+
+```bash
+# 交互式（推荐新手，会问你几个问题，直接回车用默认值）
+curl -sSL https://raw.githubusercontent.com/CDUESTC-OpenAtom-Open-Source-Club/OpenTenBase-Packages/main/scripts/opentenbase.sh | sudo bash
+
+# 或非交互式（单节点 127.0.0.1，全自动，CI 用）
+curl -sSL https://raw.githubusercontent.com/CDUESTC-OpenAtom-Open-Source-Club/OpenTenBase-Packages/main/scripts/opentenbase.sh | sudo bash -s -- --yes
+```
+
+脚本自动完成：装包 → 建用户 → 配 SSH → 生成 INI → `opentenbase_ctl install` → 启动验证（含 GTM 2核自动修复）。
+
+> **兼容性提示**：旧脚本 `deploy-opentenbase.sh` 在 2026-06-30 已重命名为 `opentenbase.sh`（单一入口脚本，含 `install`/`uninstall`/`switch`/`status`/`test` 子命令）。`deploy-opentenbase.sh` 作为软链接保留，向下兼容。
+
+部署成功后连接（**5.0 的 CN 端口是 11003，不是 5432**）：
+
+```bash
+export LD_LIBRARY_PATH=/var/lib/opentenbase/install/opentenbase/5.0/lib
+psql -h 127.0.0.1 -p 11003 -U opentenbase -d postgres -c "SELECT version();"
+```
+
+> 以下章节是这条命令的展开：多机部署、手动控制、Docker、低内存扩展、版本切换、故障排查。小白照上面三条命令跑通即可；需要定制再往下看。
+
+---
+
 ## 部署源仓库
 
 - 仓库：`https://github.com/CDUESTC-OpenAtom-Open-Source-Club/OpenTenBase-Packages`
 - 维护：CDUESTC 开源社团（blackEvil217 / muzimu217）
 - 许可证：Apache 2.0
-- 最新版本：`v5.0-p32`（截至 2026-06，含 GTM 2核修复 + 端口修正 + 全命令 `-c` 支持）
-- 支持 15+ 发行版（Ubuntu/Debian/Rocky/AlmaLinux/CentOS Stream/Fedora/openEuler），x86_64 与 aarch64
+- **最新版本：`v5.0-p32`**（2026-06-29 release）
+  - 核心变更：GTM ≤2核崩溃修复 + `opentenbase_ctl` 全命令 `-c` 规则 + CN 端口定 11003 + 一键脚本端到端验证 + 自动打包 libpqxx/CLI11
+  - 参见 commit `70166917`（"GTM 2-core crash + opentenbase_ctl -c param + port 11003 + deploy e2e"）
+- **后续更新（2026-06-30）**：脚本整合为单一入口 `opentenbase.sh`（含 `install`/`uninstall`/`switch`/`status`/`test` 子命令），`install.sh` 合并入 `opentenbase.sh`
+- 双镜像：Cloudflare `repo.blackevil217.com`（主）+ GitHub Pages（备），GPG 指纹 `D8B2E316E1FF88EE178703549D8FA46F3A55D5F0`
+
+### 支持的发行版与架构
+
+**架构**：x86_64 + aarch64（ARM64）。
+
+**官方打包发行版**（p32 release 覆盖）：
+
+| 系 | 发行版 |
+|----|--------|
+| DEB（amd64+arm64） | Ubuntu 18.04 / 20.04 / 22.04 / 24.04 / 25.04；Debian 10 / 11 / 12 / 13 |
+| RPM（x86_64+aarch64） | CentOS Stream 8/9、Rocky 8/9、AlmaLinux 8/9、Fedora 40、openEuler 22.03 |
+
+**setup 脚本额外兜底支持**（通过 `ID_LIKE` 识别）：OpenCloudOS 8/9、Anolis 8/9、TencentOS 2/3 等 RHEL 兼容发行版。
+
+> 共 30 个构建目标，覆盖 15+ 发行版。完整矩阵见仓库 `README_zh.md` 平台表。
 
 ## 版本与集群管理工具
 
@@ -29,7 +95,7 @@ user-invocable: true
 |------|------------|----------------|---------|------|
 | **2.5** | `pgxc_ctl` | `pg_ctl` | 5432 | 旧版 Postgres-XL 链路 |
 | **2.6** | `pgxc_ctl` | `pg_ctl` | 5432 | 同上，含功能增强 |
-| **5.0** | `opentenbase_ctl` | `pg_ctl` | **11003** | 新版链路，所有命令需 `-c` 参数 |
+| **5.0** | `opentenbase_ctl` | `pg_ctl` | **11003** | 新版链路，`install`/`delete`/`expand`/`shrink` 需 `-c`，`start`/`stop`/`status` 不需（默认推荐） |
 
 > **核心原则**：用户和自动化脚本 **只与集群管理工具交互**，不直接调用 `pg_ctl`/`initdb`。`pgxc_ctl` 和 `opentenbase_ctl` 各自封装了底层操作（节点注册、GTM 配置、initdb 调用）。
 
@@ -58,17 +124,17 @@ pgxc_ctl show cluster -c pgxc_ctl.conf
 ### opentenbase_ctl（5.0）
 
 ```bash
-# 所有命令都必须带 -c 参数！
-opentenbase_ctl install -c config.ini   # 安装集群
-opentenbase_ctl start -c config.ini     # 启动
-opentenbase_ctl stop -c config.ini      # 停止
-opentenbase_ctl status -c config.ini    # 查看状态
-opentenbase_ctl delete -c config.ini    # 删除集群
-opentenbase_ctl expand -c config.ini    # 扩容
-opentenbase_ctl shrink -c config.ini    # 缩容
+# install/delete/expand/shrink 带 -c；start/stop/status 不带（install 后集群状态已持久化）
+opentenbase_ctl install -c config.ini   # 安装集群（需 -c）
+opentenbase_ctl start                   # 启动
+opentenbase_ctl stop                    # 停止
+opentenbase_ctl status                  # 查看状态
+opentenbase_ctl delete -c config.ini    # 删除集群（需 -c）
+opentenbase_ctl expand -c config.ini    # 扩容（需 -c）
+opentenbase_ctl shrink -c config.ini    # 缩容（需 -c）
 ```
 
-> **5.0 硬性规则**：所有 `opentenbase_ctl` 命令都必须带 `-c config.ini`。不带 `-c` 会报 `Failed to extract version from package name`。
+> **5.0 `-c` 规则**：`install` / `delete` / `expand` / `shrink` 必须带 `-c config.ini`；`start` / `stop` / `status` **不带** `-c`（install 后集群状态已持久化，直接 start/status 即可）。只有 `install` 缺 `-c` 会报 `Failed to extract version from package name`。
 > SSH 方式通过 `sshpass` + 密码远程执行（无需密钥互信），在 INI 的 `[server]` 段配置 `ssh-user`/`ssh-password`/`ssh-port`。
 
 ---
@@ -84,7 +150,7 @@ opentenbase_ctl shrink -c config.ini    # 缩容
 **默认推荐方式一**。除非用户明确说"我要手动配置"或"用 Docker"，否则直接走一键部署。
 
 > **版本选择**：当前支持 2.5 / 2.6 / 5.0 三个版本。用户可通过 `--version` 参数指定（默认 5.0）。
-> 各版本的底层集群管理工具不同：2.5/2.6 用 `pgxc_ctl`，5.0 用 `opentenbase_ctl`。更多细节见[多版本自动化部署任务规划文档](../../全版本自动化部署任务规划.md)。
+> 各版本的底层集群管理工具不同：2.5/2.6 用 `pgxc_ctl`，5.0 用 `opentenbase_ctl`。
 
 ---
 
@@ -109,13 +175,14 @@ CN 和 DN 都有 **forward manager**（查询转发器），默认绑定 `127.0.
 
 ---
 
-
 ## 前置条件
 
 - 拥有 `sudo` 或 `root` 权限
-- 内存 **≥ 4GB**（硬性要求；2GB 服务器 GTM 会 OOM）
-- 磁盘 ≥ 10GB
-- 受支持发行版（Ubuntu 20.04+/Debian 11+/RHEL 8+/Rocky/Alma/Fedora/openEuler）
+- **内存 ≥ 4GB**（硬性要求，所有部署方式通用）
+  - 完整集群（GTM+CN+DN）Coordinator 共享内存需求约 4GB，**无法通过调优降低**；2GB 机器跑完整集群会反复 OOM
+  - 1–2GB 的瘦机器**不要硬上完整集群**，可改用「进阶场景 → 低内存 DN 部署」把它作为 Datanode 加入远程集群
+- **磁盘：最低 2GB，推荐 10GB+**
+- 受支持发行版（见上方「支持的发行版与架构」）
 - 多机部署时：各服务器间网络互通，所有节点使用相同的 SSH 用户名和密码
 
 ---
@@ -128,12 +195,12 @@ CN 和 DN 都有 **forward manager**（查询转发器），默认绑定 `127.0.
 
 ```bash
 # 操作系统
-cat /etc/os-release | grep -E "^(NAME|VERSION_ID|ID)="
+cat /etc/os-release | grep -E "^(NAME|VERSION_ID|ID)=" 
 
 # CPU 架构
 uname -m
 
-# 内存（必须 ≥ 4GB）
+# 内存（完整集群要求 ≥4GB）
 free -h
 
 # 磁盘
@@ -146,15 +213,41 @@ ss -tlnp | grep -E ":(11003|6666|15432|6669|6670)" || echo "端口空闲"
 which docker 2>/dev/null && docker --version || echo "无 Docker"
 ```
 
-也可使用辅助脚本：
-
-```bash
-python3 {baseDir}/scripts/opentenbase_deploy.py --action check
-```
+也可参考官方仓库的 `scripts/opentenbase.sh` 内置环境检查（一键脚本 Step 1 自动完成）。
 
 **硬性拦截**：
-- 内存 < 4GB → 停止，告知"内存不足"
+- 内存 < 4GB → 停止部署完整集群，告知"内存不足，建议扩容到 4GB+；若只想加节点可走低内存 DN 方案"
 - 端口被占用 → 报告哪个端口被占，询问处理方式
+
+#### 环境评估 → 部署方式推荐
+
+环境检查不是只为了"卡人"，而是要**主动给出推荐**。把收集到的内存 / CPU 核数 / 磁盘 / 是否有 Docker / 服务器数量综合判断，**先给用户一个明确结论**，再让用户确认，而不是上来就问"你想用哪种方式"。
+
+判断逻辑（按优先级，命中即停）：
+
+| 检测结果 | 推荐方式 | 推荐拓扑 | 理由 |
+|---------|---------|---------|------|
+| 内存 < 4GB | ❌ **不建议部署完整集群** | — | Coordinator 需 ~4GB，硬性要求；引导到低内存 DN 方案或扩容 |
+| 内存 ≥ 4GB，**无 Docker** | **方式一 一键部署（推荐）** | 单节点或多机 | 裸机资源利用最充分，生产可用 |
+| 内存 ≥ 4GB，**有 Docker**，且用户要测分布式 | **方式三 Docker Compose** | Docker 多节点 | 4 容器模拟真实分片拓扑，互不冲突 |
+| 多台服务器（≥3），网络互通 | **方式一 多机多节点** | GTM/CN/DN 分机 | 生产分布式，GTM 单点需独立 |
+| 用户明确要精细控制配置 | **方式二 手动安装** | 同上 | 需要逐项调参、定制 INI |
+
+**输出格式**（检查后必须这样汇报给用户）：
+
+```
+✅ 环境评估完成
+- 操作系统：Ubuntu 22.04 (x86_64)
+- 内存：8.0 GB   CPU：4 核   磁盘：50 GB（剩余 38 GB）
+- Docker：已安装（24.0）
+- 端口：11003/6666/15432/6669/6670 全部空闲
+
+👉 推荐部署方式：方式三 Docker Compose
+   理由：内存 ≥4GB 且已装 Docker，4 容器可模拟真实分布式拓扑
+   预计内存占用：约 3–4 GB
+```
+
+> **铁律**：先报告评估结论 + 推荐，**再**咨询用户是否采用。不要跳过推荐直接问"你选哪种"。用户可选择接受推荐或切换其他方式。
 
 ### 阶段二：咨询用户选择版本、部署方式和拓扑
 
@@ -186,16 +279,31 @@ python3 {baseDir}/scripts/opentenbase_deploy.py --action check
 
 ## 方式一：一键自动化部署（推荐）
 
-### 核心脚本：`deploy-opentenbase.sh`
+## 核心脚本：`opentenbase.sh`（统一入口，原 `deploy-opentenbase.sh`）
 
-白板机器上一条命令完成全部步骤：安装包 → 创建用户 → 配置 sshpass → 路径符号链接 → 生成 INI → `opentenbase_ctl install` → 启动验证。
+官方仓库在 2026-06-30 将 19 个脚本整合为单一入口 `opentenbase.sh`，支持子命令：
+
+```bash
+# 子命令结构
+sudo bash opentenbase.sh install [--yes]        # 安装部署（默认命令）
+sudo bash opentenbase.sh uninstall [--purge]    # 卸载
+sudo bash opentenbase.sh switch [VERSION]        # 切换版本
+sudo bash opentenbase.sh status                  # 查看集群状态
+sudo bash opentenbase.sh test [--quick|--full]   # 验证测试
+
+# 向下兼容：旧用法（无子命令）等同于 install
+curl -sSL .../opentenbase.sh | sudo bash
+curl -sSL .../opentenbase.sh | sudo bash -s -- --yes
+```
+
+白板机器上一条命令完成全部步骤：安装包 → 创建用户 → 配置 sshpass → 路径符号链接 → 生成 INI → `opentenbase_ctl install -c <config.ini>` → 启动验证。
 
 ### 三种使用模式
 
 **模式 A：交互式（推荐新手）**
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/CDUESTC-OpenAtom-Open-Source-Club/OpenTenBase-Packages/main/scripts/deploy-opentenbase.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/CDUESTC-OpenAtom-Open-Source-Club/OpenTenBase-Packages/main/scripts/opentenbase.sh | sudo bash
 ```
 
 运行后会问几个问题（直接回车用默认值）：
@@ -212,7 +320,7 @@ curl -sSL https://raw.githubusercontent.com/CDUESTC-OpenAtom-Open-Source-Club/Op
 **模式 B：非交互式（CI/自动化）**
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/CDUESTC-OpenAtom-Open-Source-Club/OpenTenBase-Packages/main/scripts/deploy-opentenbase.sh | sudo bash -s -- --yes
+curl -sSL https://raw.githubusercontent.com/CDUESTC-OpenAtom-Open-Source-Club/OpenTenBase-Packages/main/scripts/opentenbase.sh | sudo bash -s -- --yes
 ```
 
 零交互，全部使用默认值（单节点 `127.0.0.1`，密码 `opentenbase`）。
@@ -220,7 +328,7 @@ curl -sSL https://raw.githubusercontent.com/CDUESTC-OpenAtom-Open-Source-Club/Op
 **模式 C：非交互式 + 自定义参数（多机多节点）**
 
 ```bash
-sudo bash deploy-opentenbase.sh --yes \
+sudo bash opentenbase.sh install --yes \
     --cluster-name prod01 \
     --gtm-ip 192.168.1.10 \
     --cn-ip 192.168.1.11 \
@@ -230,7 +338,7 @@ sudo bash deploy-opentenbase.sh --yes \
     --ssh-port 22
 ```
 
-### 脚本命令行参数
+### 命令行参数（`install` 子命令）
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
@@ -242,10 +350,14 @@ sudo bash deploy-opentenbase.sh --yes \
 | `--dn-ip IP` | Datanode 节点 IP | 同 gtm-ip |
 | `--ssh-user USER` | SSH 用户名 | `opentenbase` |
 | `--ssh-port PORT` | SSH 端口 | `22` |
-| `--version VER` | OpenTenBase 版本 | `5.0` |
+| `--version VER` | OpenTenBase 版本（5.0 / 2.6.0 / 2.5.0） | `5.0` |
 | `--skip-install` | 跳过包安装（已装时用） | false |
-| `--no-start` | 安装后不启动集群 | false（默认启动） |
+| `--clean` | 部署前清理旧数据目录 | false |
+| `--start` | 安装后自动启动集群（默认启用） | true |
+| `--no-start` | 安装后**不**启动集群（只装不启） | false |
 | `--help` / `-h` | 显示帮助 | — |
+
+> **其他子命令参数**：`uninstall` 支持 `--purge`（删除数据和日志）和 `--yes`；`test` 支持 `--quick`（仅连接验证）和 `--full`（完整 CRUD 测试）；`switch` 直接跟版本号如 `5.0`。
 
 ### 脚本自动完成的 6 步
 
@@ -254,7 +366,10 @@ sudo bash deploy-opentenbase.sh --yes \
 3. **系统准备** — 创建用户 → 设密码 → sudo 免密 → 启动 sshd → 路径符号链接
 4. **集群配置** — 交互式收集参数或使用默认值 → 生成 INI 配置（`chmod 600` 保护密码）
 5. **安装集群** — `opentenbase_ctl install -c /tmp/opentenbase_config.ini`（含 GTM 2核自动修复）
-6. **启动验证** — `opentenbase_ctl status -c` + psql 连接测试（端口 11003）+ 分布式表 CRUD 测试
+6. **启动验证** — `opentenbase_ctl status` + psql 连接测试（端口 11003）+ 分布式表 CRUD 测试
+
+> **关于两套部署脚本**：仓库还有另一套 `setup-cluster.sh`（内部下载并执行 `setup-cluster-impl.sh`），用 `opentenbase-ctl`（连字符，仓库自带 shell 包装）+ `opentenbase.conf`，默认 CN 端口 **5432**，内存分级更细（4 级）、有单节点 single 模式。
+> **本技能以 `opentenbase.sh` 为主**——它经 p32+ 端到端验证、用上游官方 `opentenbase_ctl` 二进制。若主脚本在特殊环境（极低内存、broken APT 源）受阻，可尝试 `setup-cluster.sh` 作为备用，但注意其 CN 端口是 5432，连接前务必用 `status` 确认。
 
 ### 多机多节点部署示例
 
@@ -263,7 +378,7 @@ sudo bash deploy-opentenbase.sh --yes \
 在任意一台服务器（推荐 GTM 所在机器）执行：
 
 ```bash
-sudo bash deploy-opentenbase.sh --yes \
+sudo bash opentenbase.sh install --yes \
     --gtm-ip 192.168.1.10 \
     --cn-ip 192.168.1.11 \
     --dn-ip 192.168.1.12 \
@@ -291,10 +406,10 @@ sudo bash deploy-opentenbase.sh --yes \
 > psql -h <CN_IP> -p 11003 -U opentenbase -d postgres
 > ```
 >
-> 常用管理命令（所有命令都需要 `-c` 参数）：
-> - `opentenbase_ctl status -c config.ini` — 查看状态
-> - `opentenbase_ctl stop -c config.ini` — 停止
-> - `opentenbase_ctl start -c config.ini` — 启动
+> 常用管理命令（`start`/`stop`/`status` 不带 `-c`；`delete`/`expand`/`shrink` 带 `-c`）：
+> - `opentenbase_ctl status` — 查看状态
+> - `opentenbase_ctl stop` — 停止
+> - `opentenbase_ctl start` — 启动
 > - `opentenbase_ctl delete -c config.ini` — 删除集群
 
 ---
@@ -307,11 +422,15 @@ sudo bash deploy-opentenbase.sh --yes \
 > - **2.5 / 2.6**：使用 `pgxc_ctl` 链路。安装包后编辑 `pgxc_ctl.conf`，执行 `pgxc_ctl deploy` 部署集群。
 > - **5.0**：使用 `opentenbase_ctl` 链路。安装包后编辑 INI 配置文件，执行 `opentenbase_ctl install -c config.ini`。
 >
-> 以下以 **5.0** 为例（最常用）。2.5/2.6 的详细步骤见[多版本自动化部署任务规划文档](../../全版本自动化部署任务规划.md)。
+> 以下以 **5.0** 为例（最常用）。
 
 ### Step 1：安装软件包
 
-**APT 系**（Ubuntu/Debian）：
+有三种装包途径，按需选择：
+
+**途径 A：配置官方仓库后用包管理器装**（推荐，自动处理依赖与更新）
+
+APT 系（Ubuntu/Debian）：
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/CDUESTC-OpenAtom-Open-Source-Club/OpenTenBase-Packages/main/scripts/setup-apt.sh | sudo bash
@@ -319,7 +438,7 @@ sudo apt update && sudo apt install -y opentenbase
 sudo apt install -y sshpass
 ```
 
-**RPM 系**（RHEL/Rocky/Alma/Fedora/openEuler）：
+RPM 系（RHEL/Rocky/Alma/Fedora/openEuler）：
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/CDUESTC-OpenAtom-Open-Source-Club/OpenTenBase-Packages/main/scripts/setup-rpm.sh | sudo bash
@@ -327,7 +446,41 @@ sudo dnf install -y opentenbase
 sudo dnf install -y sshpass
 ```
 
+> `setup-apt.sh` 支持 `--version 5.0|2.6.0|2.5.0` 指定版本（对应仓库 component：main/v2.6/v2.5）；`setup-rpm.sh` 不带版本参数。
 > GPG 校验失败时：APT 加 `--allow-unauthenticated`，DNF 加 `--nogpgcheck`。
+
+**途径 B：用通用安装器 `install.sh`（已合并入 `opentenbase.sh`）**
+
+> **2026-06-30 变更**：官方仓库已将 `install.sh` 删除，功能合并到 `opentenbase.sh`。以下用法供参考，新用户直接使用 `opentenbase.sh install`。
+
+```bash
+# 通过 opentenbase.sh 统一入口安装（推荐）
+curl -sSL https://raw.githubusercontent.com/CDUESTC-OpenAtom-Open-Source-Club/OpenTenBase-Packages/main/scripts/opentenbase.sh | sudo bash
+
+# 指定版本
+sudo bash opentenbase.sh install --yes --version 5.0   # 或 2.6.0 / 2.5.0
+
+# 旧版 install.sh 用法（仅仓库已有副本可用）：
+curl -sSL https://raw.githubusercontent.com/CDUESTC-OpenAtom-Open-Source-Club/OpenTenBase-Packages/main/scripts/install.sh | sudo bash
+sudo bash install.sh --version 2.6.0        # 或 5.0 / 2.5.0 / master / latest
+sudo bash install.sh --build-from-source
+sudo bash install.sh /path/to/packages/
+sudo bash install.sh --force
+```
+
+> `install.sh`（旧版）支持多版本 side-by-side 安装，`opentenbase.sh install` 已继承此能力。
+
+**途径 C：手动下载 release 包安装**
+
+```bash
+# DEB
+wget https://github.com/CDUESTC-OpenAtom-Open-Source-Club/OpenTenBase-Packages/releases/download/v5.0-p32/opentenbase_5.0-p32_amd64.deb
+sudo dpkg -i opentenbase_*.deb && sudo apt-get install -f -y
+
+# RPM
+wget https://github.com/CDUESTC-OpenAtom-Open-Source-Club/OpenTenBase-Packages/releases/download/v5.0-p32/opentenbase-5.0-p32.x86_64.rpm
+sudo rpm -ivh opentenbase-*.rpm
+```
 
 ### Step 2：系统准备
 
@@ -386,12 +539,14 @@ nodes-per-server=1
 
 [server]
 ssh-user=opentenbase        # SSH 用户（所有节点必须一致）
-ssh-password=your_password  # SSH 密码
+ssh-password=your_password  # SSH 密码（单节点本地部署可省略，多机必填）
 ssh-port=22
 
 [log]
 level=INFO
 ```
+
+> **关于 `ssh-password`**：官方单节点模板（`opentenbase_config.ini.example`）**省略**了此字段——因为本地 IP（127.0.0.1）走 `cp` 拷贝不走 SSH。**多机部署必填**，否则远程节点连不上。一键脚本通过 `--ssh-password` 参数自动写入。
 
 #### 单节点配置（GTM + CN 同机）
 
@@ -473,8 +628,8 @@ sudo -u opentenbase opentenbase_ctl install -c /tmp/otb_config.ini
 ### Step 5：验证
 
 ```bash
-# 查看集群状态（所有命令都需要 -c）
-opentenbase_ctl status -c /tmp/otb_config.ini
+# 查看集群状态（status 不需要 -c）
+opentenbase_ctl status
 
 # 连接测试（注意 CN 端口是 11003，不是 5432）
 export LD_LIBRARY_PATH=/var/lib/opentenbase/install/opentenbase/5.0/lib
@@ -531,20 +686,22 @@ cd /tmp/otb-docker/compose
 docker compose up -d --build
 ```
 
+> **关于镜像 tag**：`test-docker.sh` 下载的是 multi-arch 的 RPM（来自 `v5.0-multi13` tag），与裸机部署用的 `v5.0-p32` 是**两套 tag 体系**（前者按 CPU 架构打包，后者按 release 迭代）。这是正常的，不影响使用。
+
 ### 架构
 
 ```
-Docker Network (172.20.0.0/24)
+Docker Network (172.20.0.0/24，IP 由 Docker 动态分配)
 ┌──────────┐  ┌───────────┐  ┌──────────┐  ┌──────────┐
 │  GTM     │  │  CN       │  │  DN01    │  │  DN02    │
-│  172.20  │  │  172.20   │  │  172.20  │  │  172.20  │
-│  .0.2    │  │  .0.3     │  │  .0.4    │  │  .0.5    │
 │  :6666   │  │  :5432    │  │  :15432  │  │  :15433  │
 └──────────┘  └───────────┘  └──────────┘  └──────────┘
               ↑ 对外端口 5432
 ```
 
 每个容器独立 IP，`forward_port`（6670）和 `pooler_port`（6669）互不冲突。
+
+> **端口提醒**：Docker 部署下 CN 通过环境变量 `COORD_PORT=5432` 配置并映射到宿主机 **5432**；这与裸机 5.0 的 **11003** 不同。即同一 5.0 版本，**裸机用 11003、Docker 用 5432**——连接前请确认部署方式。
 
 ### 验证连接
 
@@ -604,6 +761,8 @@ docker compose down -v          # 停止并删除数据卷（完全重置）
 
 然后在 `volumes:` 下添加 `dn3_data:`，重新 `docker compose up -d --build`。
 
+> **源码编译 Docker（进阶）**：仓库另有 `docker/cluster/quick-start-source.sh`，在容器内 clone 上游源码并编译运行，端口拓扑不同（CN=15432、库名=`opentenbase`），仅供二次开发使用，日常部署不用。
+
 ### 反馈用户
 
 > OpenTenBase Docker 部署成功！
@@ -613,13 +772,62 @@ docker compose down -v          # 停止并删除数据卷（完全重置）
 
 ---
 
+## 进阶场景
+
+### 低内存 DN 部署（1–2GB 服务器当数据节点）
+
+场景：手里有一台 1–2GB 内存的小机器（常见国产云低配机），跑不了完整集群，但想把它作为 **Datanode** 加入一个已有的远程集群。
+
+仓库提供专用脚本 `deploy-lowmem-datanode.sh`（位于 `scripts/extras/`）：自动建 1GB swap、只起 DN 进程、直连远程 GTM，内存占用约 **400–600MB**。
+
+```bash
+# 在低内存机器上执行（--gtm-ip 必填，指向已有集群的 GTM）
+curl -sSL https://raw.githubusercontent.com/CDUESTC-OpenAtom-Open-Source-Club/OpenTenBase-Packages/main/scripts/extras/deploy-lowmem-datanode.sh | sudo bash -s -- --gtm-ip 192.168.1.10
+
+# 完整参数
+sudo bash extras/deploy-lowmem-datanode.sh \
+    --gtm-ip 192.168.1.10 \
+    --gtm-port 6666 \
+    --dn-name dn2 \
+    --dn-port 15432 \
+    --version 5.0
+```
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `--gtm-ip IP` | 远程 GTM 的 IP | **必填** |
+| `--gtm-port PORT` | GTM 端口 | `6666` |
+| `--dn-name NAME` | 本 Datanode 名称 | `dn1` |
+| `--dn-port PORT` | 本 Datanode 端口 | `15432` |
+| `--version VER` | OpenTenBase 版本 | `5.0` |
+
+> 该脚本直接用 `initdb` + `pg_ctl` 启动 DN（不走 opentenbase_ctl），适合 5.0；加入后需在 CN 侧用 `CREATE NODE` / `ALTER NODE` 注册该 DN 并重分布数据。
+
+### 多版本切换（side-by-side）
+
+场景：同一台机器上用 `install.sh` 装了多个版本（如 5.0 和 2.6.0），想在它们之间切换。
+
+`install.sh` 安装时会部署 `opentenbase-switch-version` 命令，操作 `/etc/opentenbase/current` 符号链接：
+
+```bash
+# 列出已安装版本并显示当前激活版本
+opentenbase-switch-version
+
+# 切换到指定版本（需 root）
+sudo opentenbase-switch-version 5.0       # 或 2.6.0 / 2.5.0
+```
+
+> 切换的是默认版本符号链接（`/usr/bin/*`、`/etc/opentenbase/current`），不影响已运行的集群进程；切换后新起的会话/命令使用新版本。
+
+---
+
 ## 安装后目录结构
 
 | 路径 | 用途 |
 |------|------|
 | `/usr/lib/opentenbase/5.0/bin/opentenbase_ctl` | 官方 C++ 集群管理二进制 |
 | `/usr/lib/opentenbase/5.0/bin/` | 其他二进制（postgres, gtm_ctl, initdb, psql 等） |
-| `/usr/lib/opentenbase/5.0/lib/` | 运行时库（libpq.so, libpqxx.so 等） |
+| `/usr/lib/opentenbase/5.0/lib/` | 运行时库（libpq.so, libpqxx.so 等，当前版本已捆绑） |
 | `/var/lib/opentenbase/install/opentenbase/5.0/` | **运行时部署目录**（opentenbase_ctl install 后使用） |
 | `/etc/opentenbase/5.0/` | 配置文件（含 opentenbase_config.ini.example） |
 | `/usr/local/install/opentenbase` | 符号链接 → `/usr/lib/opentenbase/5.0` |
@@ -631,7 +839,7 @@ docker compose down -v          # 停止并删除数据卷（完全重置）
 ## 卸载
 
 ```bash
-# 方式一/二：使用 opentenbase_ctl（所有命令需要 -c）
+# 方式一/二：使用 opentenbase_ctl（delete 需要 -c）
 opentenbase_ctl delete -c /tmp/otb_config.ini
 
 # 然后卸载软件包
@@ -674,6 +882,13 @@ CREATE TABLE regions (
 
 ## 已知问题与解决方案
 
+### 0. 当前多版本自动化结论
+
+- **2.5 / 2.6 正式链路**：必须固定为 `pgxc_ctl deploy` / `pgxc_ctl init`，不能把后台启动后强杀控制器的临时办法当成成功交付。
+- **5.0 正式链路**：必须固定为 `opentenbase_ctl ... -c config.ini`（p32 已端到端验证）。
+- **Docker 正式链路**：必须采用多容器、独立 IP 的 Compose 架构；单容器伪多节点仅适合临时排障，不作为交付方案。
+- 参考文档见 `{baseDir}/references/README.md`（索引）及各专题文档。
+
 ### 1. OSS_INSTALL_DIR 路径不匹配
 
 `opentenbase_ctl` 的 `cluster.h` 硬编码了 `#define OSS_INSTALL_DIR "/usr/local/install/opentenbase"`，但 RPM/DEB 包安装到 `/usr/lib/opentenbase/5.0/`。
@@ -685,13 +900,26 @@ sudo mkdir -p /usr/local/install
 sudo ln -sf /usr/lib/opentenbase/5.0 /usr/local/install/opentenbase
 ```
 
+### 1.5. 用户主目录归属错误（opentenbase.sh #39 修复）
+
+软件包安装后 `opentenbase` 用户主目录可能归属 `root`，导致 `ssh-keygen` 失败、SSH 连接异常。
+
+**解决**（`opentenbase.sh install` 已自动修复）：
+
+```bash
+SSH_USER_HOME=$(getent passwd opentenbase | cut -d: -f6)
+chown -R opentenbase:opentenbase "$SSH_USER_HOME"
+chmod 750 "$SSH_USER_HOME"
+chmod 700 "$SSH_USER_HOME/.ssh"
+```
+
 ### 2. 低核心数（≤2 核）GTM 启动崩溃
 
 GTM 的 `bind_service_threads()` 在 ≤2 核机器上生成空 cpuset，导致 `pthread_setaffinity_np` 返回 EINVAL（`FATAL: binding threads failed`）。
 
-> **重要**：`LD_PRELOAD` 方案无效！`opentenbase_ctl` 通过 SSH 启动 GTM 为独立进程，`LD_PRELOAD` 不会传播到 SSH 子进程。必须使用 `/etc/ld.so.preload` 全局注入。
+> **为什么必须用全局注入**：`opentenbase_ctl` 通过 SSH 启动 GTM 为独立进程，`LD_PRELOAD` **不会传播到 SSH 子进程**（p32 commit `70166917` 实测确认）。因此**必须**用 `/etc/ld.so.preload` 全局注入；同时建议叠加 `LD_PRELOAD` 双保险（脚本两者都做）。
 
-**解决**：
+**解决**（一键脚本在 CPU ≤2 核时自动完成）：
 
 ```bash
 # 1. 编译 noaffinity.so（让 pthread_setaffinity_np 变为 no-op）
@@ -702,16 +930,14 @@ int pthread_setaffinity_np(pthread_t t, size_t s, const cpu_set_t *c) { return 0
 EOF
 gcc -shared -fPIC -o /usr/lib/opentenbase/noaffinity.so /tmp/noaffinity.c -lpthread
 
-# 2. 写入 /etc/ld.so.preload（全局注入，所有进程生效，含 SSH 子进程）
+# 2. 写入 /etc/ld.so.preload（全局注入，所有进程生效，含 SSH 子进程——这一步是关键）
 echo "/usr/lib/opentenbase/noaffinity.so" > /etc/ld.so.preload
 chmod 644 /etc/ld.so.preload
 ```
 
-一键部署脚本在检测到 CPU ≤2 核时会自动完成上述操作。
-
 ### 3. libpqxx.so 运行时缺失
 
-从 v5.0-p30 起已自动捆绑。如仍遇到 `error while loading shared libraries: libpqxx-6.4.so`：
+**当前版本（p31/p32）已将 libpqxx/CLI11 打包进 `/usr/lib/opentenbase/5.0/lib/`**，正常无需手动处理。如遇旧包仍报 `error while loading shared libraries: libpqxx-6.4.so`：
 
 ```bash
 sudo cp /usr/lib/x86_64-linux-gnu/libpqxx* /usr/lib/opentenbase/5.0/lib/ 2>/dev/null || true
@@ -721,7 +947,7 @@ sudo ldconfig
 
 ### 4. 2.5/2.6 initdb create gtm node (null) 语法错误（版本缺陷）
 
-**仅 2.5 / 2.6 受影响**。5.0 无此问题。
+**仅 2.5 / 2.6 受影响**。5.0 无此问题（5.0 的 initdb 可直接调用并支持 `--master_gtm_nodename/ip/port`）。
 
 **现象**：直接调用 `initdb` 初始化 coordinator 或 datanode 时，bootstrap 阶段报错退出：
 
@@ -746,52 +972,60 @@ initdb --nodename=coord1 --nodetype=coordinator -D /data/coord
 
 ## 端口参考
 
-| 服务 | 2.5 / 2.6 | 5.0 | 说明 |
-|------|-----------|-----|------|
-| GTM | 6666 | 6666 | 全局事务管理器 |
-| Coordinator (CN) | **5432** | **11003** | 客户端连接入口（版本间端口不同！） |
-| Datanode (DN) | 15432 | 15432 | 数据节点 |
-| Pooler | 6669 | 6669 | 连接池（各节点需不同 IP） |
-| Forward Manager | 6670 | 6670 | 查询转发器（各节点需不同 IP） |
+| 服务 | 2.5 / 2.6 | 5.0（裸机） | 5.0（Docker） | 说明 |
+|------|-----------|-----|-----|------|
+| GTM | 6666 | 6666 | 6666 | 全局事务管理器 |
+| Coordinator (CN) | **5432** | **11003** | **5432** | 客户端连接入口（版本/部署方式不同，端口不同！） |
+| Datanode (DN) | 15432 | 15432 | 15432/15433 | 数据节点（Docker 下多 DN 递增） |
+| Pooler | 6669 | 6669 | 6669 | 连接池（各节点需不同 IP） |
+| Forward Manager | 6670 | 6670 | 6670 | 查询转发器（各节点需不同 IP） |
 
-> **端口说明**：
-> - 2.5/2.6 单节点集群 CN 监听 **5432**（PostgreSQL 传统端口）
-> - 5.0 `opentenbase_ctl` 部署的单节点集群 CN 监听 **11003**
-> - Docker Compose 部署的 CN 映射到宿主机 **5432**（所有版本）
-> - 连接前请用集群管理工具确认端口：`pgxc_ctl monitor`（2.5/2.6）或 `opentenbase_ctl status -c config.ini`（5.0）
+> **端口速记**：
+> - 2.5/2.6 单节点 CN = **5432**
+> - 5.0 裸机（opentenbase_ctl 部署）CN = **11003**
+> - 5.0 Docker Compose CN 映射宿主 = **5432**
+> - 连接前请用集群管理工具确认端口：`pgxc_ctl monitor`（2.5/2.6）或 `opentenbase_ctl status`（5.0）
 
 ---
 
-## 程序辅助
+## 官方脚本索引
 
-```bash
-python3 {baseDir}/scripts/opentenbase_deploy.py --action check    # 部署前环境检查
-python3 {baseDir}/scripts/opentenbase_deploy.py --action status   # 部署后状态验证
-```
+OpenTenBase-Packages 官方仓库提供了以下脚本，本技能直接引用，无需本地维护副本：
 
-脚本只做检查与验证，不执行实际安装。
+> **2026-06-30 重构**：原 `deploy-opentenbase.sh` 和 `install.sh` 已合并为统一入口 `opentenbase.sh`（支持 `install`/`uninstall`/`switch`/`status`/`test` 子命令）。`deploy-opentenbase.sh` 作为软链接保留，向下兼容。`install.sh` 已删除，功能由 `opentenbase.sh install` 替代。
+
+| 脚本 | 用途 | 调用方式 |
+|------|------|---------|
+| `opentenbase.sh` | **统一管理脚本**（安装/卸载/切换/状态/测试） | `curl ... \| sudo bash` 或 `sudo bash opentenbase.sh [command]` |
+| `setup-apt.sh` | 配置 APT 仓库 | `curl ... \| sudo bash` |
+| `setup-rpm.sh` | 配置 RPM 仓库 | `curl ... \| sudo bash` |
+| `uninstall.sh` | 卸载（含 `--purge` 全量清理） | `curl ... \| sudo bash`（或 `opentenbase.sh uninstall`） |
+| `switch-version.sh` | 版本切换 | 通常通过 `opentenbase.sh switch` 调用 |
+| `extras/deploy-lowmem-datanode.sh` | 低内存 DN 部署 | `curl ... \| sudo bash`（旧路径保留软链接） |
+| `test-docker.sh` | Docker Compose 部署 | `curl -sLO && bash`（位置：`docker/test-docker.sh`） |
 
 ---
 
 ## 红线
 
-- **不跳过环境检查直接部署**（尤其内存 < 4GB 必须拦截）
+- **不跳过环境检查直接部署**（内存 < 4GB 必须拦截，引导低内存 DN 方案或扩容）
 - **不使用 root 作为数据库运行用户**
 - **不在未验证（status 全 running + psql 可连）的情况下声明部署成功**
 - **部署失败如实告知，不谎报成功**
 - **不自动覆盖已有数据目录**，检测到已安装时先询问用户
-- **不在 `start/stop/status/delete` 后面漏掉 `-c` 参数**（5.0 所有命令都需要）
+- **`install`/`delete`/`expand`/`shrink` 必须带 `-c`；`start`/`stop`/`status` 不带**（5.0：install 后集群状态已持久化，只有处理拓扑的命令才需 `-c`）
 - **2.5/2.6 禁止直接调用 `initdb`**，必须通过 `pgxc_ctl deploy` 间接调用（否则 `create gtm node (null)` bug）
 - **版本混淆**：2.5/2.6 用 `pgxc_ctl`，5.0 用 `opentenbase_ctl`，工具不能混用
-- **2.5/2.6 CN 端口是 5432，5.0 CN 端口是 11003**，连接前确认端口
+- **端口混淆**：2.5/2.6 与 5.0-Docker 的 CN 是 **5432**，5.0 裸机的 CN 是 **11003**，连接前务必确认
 
 ---
 
 ## 必读参考
 
 - 仓库 README：`https://github.com/CDUESTC-OpenAtom-Open-Source-Club/OpenTenBase-Packages`
-- 全版本自动化部署任务规划：`../../全版本自动化部署任务规划.md`
+- 最新 release：`https://github.com/CDUESTC-OpenAtom-Open-Source-Club/OpenTenBase-Packages/releases/tag/v5.0-p32`
+- 近期变更（2026-06-30）：脚本整合为 `opentenbase.sh` 统一入口（commit `14a8bd4`），管道修复（commit `cfe12ec`），CLI 文档和版本控制路径（commit `5ba0ae2`）
 - 上游 opentenbase_ctl 源码：`https://github.com/OpenTenBase/OpenTenBase/tree/v5.0/contrib/opentenbase_ctl`
-- 快速开始：仓库 `docs/QUICKSTART.md`
+- 快速开始：仓库 `docs/01-quickstart.md`、`docs/QUICKSTART.md`
 - 部署指南：仓库 `docs/07-deployment.md`
 - 故障排除：仓库 `docs/05-troubleshoot.md`
