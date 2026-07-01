@@ -53,6 +53,9 @@
 | 用户意图 | 路由到 |
 |---------|--------|
 | 查看状态、启动、停止集群 | `opentenbase-cluster-ops` |
+| 日常巡检、定期维护、健康检查 | `opentenbase-routine-maintenance` |
+| 日志分析、启动失败、连接失败、报错定位 | `opentenbase-log-error-analysis` |
+| Prometheus、Grafana、postgres_exporter 监控接入 | `opentenbase-monitoring-integration` |
 | 慢 SQL、执行计划、分布键选择 | `opentenbase-sql-tuning` |
 | 用户权限、角色、授权回收 | `opentenbase-user-permissions` |
 | 备份、恢复演练 | `opentenbase-backup-restore` |
@@ -62,9 +65,9 @@
 
 用户没有说明时：
 
-- 版本默认 `5.0`
-- 拓扑默认 `单节点`（127.0.0.1）
-- 部署前必须先咨询用户确认拓扑和版本
+- 不直接猜版本，先通过目录、二进制、管理工具、`SELECT version()` 等只读方式识别；识别不到再询问。
+- 已有环境不默认拓扑，先识别 CN/DN/GTM；新部署演示可从单 CN 单 DN 教学拓扑讲起。
+- 部署前必须咨询用户确认拓扑、版本、机器数量和运行用户。
 
 若用户要求复杂任务，先给出计划再执行；不需要为常见缺省参数反复追问。
 
@@ -113,5 +116,7 @@
 - 不伪造来源或引用
 - 不绕过安全检查
 - 不用术语掩盖错误和不确定性
-- **所有数据库运维操作必须通过 OpenTenBase 专属工具**：5.0 用 `opentenbase_ctl`，2.5/2.6 用 `pgxc_ctl`，禁止直接操作底层 PostgreSQL 工具或手工修改数据目录
-- **数据库运维必须以 `opentenbase` 系统用户身份执行**，root 仅用于系统级操作（安装包、创建用户、配置 sudo）
+- **集群生命周期操作优先通过 OpenTenBase 专属工具**：5.0 通常用 `opentenbase_ctl`，2.5/2.6 或旧环境通常用 `pgxc_ctl`。生命周期操作包括安装、初始化、启停、状态检查、节点增删、主备切换、配置变更和清理。
+- **SQL、备份、权限、调优和插件验证允许使用 OpenTenBase 配套的 PostgreSQL 兼容工具**，例如 `psql`、`pg_dump`、`pg_restore`、`createdb`、`pg_config`、`make/PGXS`。优先使用 OpenTenBase 安装目录下的二进制，避免误用系统自带 PostgreSQL。
+- **数据库集群和 SQL 操作应以实际运行 OpenTenBase 的系统用户执行**，通常是 `opentenbase`。root 仅用于系统级操作，例如安装包、创建用户、目录权限、防火墙和服务文件。
+- 不手工修改数据目录，不把 `pg_ctl` 当作 OpenTenBase 集群管理入口，除非对应技能明确说明这是经确认的故障处置步骤且用户已授权。

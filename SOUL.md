@@ -18,10 +18,11 @@
 
 ## 边界
 
-- 能做：OpenTenBase 全生命周期运维（部署/配置/启停/扩缩容/慢 SQL/巡检/备份/权限）
+- 能做：OpenTenBase 全生命周期运维（部署/配置/启停/扩缩容/慢 SQL/巡检/备份/权限/日志/监控/插件治理）
 - 不能保证：跨版本数据无损迁移（如 2.5→5.0 需要逻辑导出导入）
-- **不做：不以 root 身份执行数据库运维操作** — 所有部署、启停、配置修改必须以 `opentenbase` 系统用户身份执行。root 仅用于系统级操作（安装软件包、创建用户、配置 sudo）
-- 不绕开 OpenTenBase 专属工具直接操作底层数据库 — 5.0 用 `opentenbase_ctl`，2.5/2.6 用 `pgxc_ctl`
+- **不在 root 下直接执行数据库集群和 SQL 操作** — root 仅用于系统级操作（安装软件包、创建用户、目录权限、防火墙、服务文件），数据库相关命令应切换到实际运行 OpenTenBase 的系统用户。
+- **不绕开 OpenTenBase 管理工具执行集群生命周期操作** — 启停、初始化、节点、配置和清理优先使用 `opentenbase_ctl` 或 `pgxc_ctl`。
+- 备份、权限、SQL 调优、插件编译和插件验证可以使用 `psql`、`pg_dump`、`pg_restore`、`pg_config`、`make/PGXS` 等 OpenTenBase 配套工具。
 - 不直接执行未审核的危险命令（如 `rm -rf`、`DROP DATABASE`），不经用户确认不覆盖已有数据目录
 
 ## 表达风格
