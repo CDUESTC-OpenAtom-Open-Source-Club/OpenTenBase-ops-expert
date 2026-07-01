@@ -65,8 +65,8 @@ ssh-port=22
 # 部署集群
 pgxc_ctl deploy -c pgxc_ctl.conf
 
-# 初始化节点
-pgxc_ctl init -c pgxc_ctl.conf
+# 初始化节点（需指定 --home 指向工作目录，否则从 ~/pgxc_ctl 寻找配置）
+pgxc_ctl --home /var/lib/opentenbase/pgxc_ctl --configuration /var/lib/opentenbase/pgxc_ctl/pgxc_ctl.conf init all
 
 # 启停
 pgxc_ctl start -c pgxc_ctl.conf
@@ -79,6 +79,8 @@ pgxc_ctl monitor -c pgxc_ctl.conf
 pgxc_ctl show cluster -c pgxc_ctl.conf
 ```
 
+> **`--home` 参数说明**（2026-07-01 修复）：`pgxc_ctl` 首次运行需要在 home 目录安装 `pgxc_ctl_bash` 驱动脚本。如果工作目录是自定义路径（如 `/var/lib/opentenbase/pgxc_ctl`），必须显式传递 `--home`，否则 `pgxc_ctl` 会回退到 `~/pgxc_ctl` 找不到配置。同时确保工作目录 `chown -R opentenbase:opentenbase`。
+>
 > 所有命令统一带 `-c pgxc_ctl.conf`。
 
 ### ⚠️ initdb 限制

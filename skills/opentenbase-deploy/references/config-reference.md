@@ -212,8 +212,10 @@ sudo ldconfig
 ## 部署源仓库信息
 
 - 仓库：`https://github.com/CDUESTC-OpenAtom-Open-Source-Club/OpenTenBase-Packages`
+- 维护：CDUESTC 开源社团（blackEvil217 / muzimu217）
 - 许可证：Apache 2.0
 - 最新版本：`v5.0-p32`（2026-06-29）
+- CDN 加速：脚本下载路径 `https://repo.blackevil217.com/scripts/opentenbase.sh`（Cloudflare 全球加速，国内速度提升约 150-200 倍，自动回退 GitHub raw）
 - GPG 指纹：`D8B2E316E1FF88EE178703549D8FA46F3A55D5F0`
 - 支持发行版：Ubuntu 18.04–25.04 / Debian 10–13 / CentOS Stream 8/9 / Rocky 8/9 / AlmaLinux 8/9 / Fedora 40 / openEuler 22.03
 - 架构：x86_64 + aarch64

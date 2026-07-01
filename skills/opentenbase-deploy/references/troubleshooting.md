@@ -64,3 +64,24 @@
 - 单机多节点裸机部署：**不支持**，因为 `6669/6670` 端口冲突。
 - Docker Compose：**支持**，前提是每个节点各自一个容器，并拥有独立 IP。
 - 因此，Compose 是实现“单机多节点体验”的正式路径，不是单容器伪装单节点。
+
+## 8. 2.5/2.6 pgxc_ctl init all Permission denied（--home 缺失）
+
+**现象**：`pgxc_ctl init all` 执行后报 `Permission denied`，或提示找不到配置文件和驱动脚本。
+
+**根因**（2026-07-01 #53 修复）：
+
+1. **工作目录权限**：`/var/lib/opentenbase/pgxc_ctl` 由 root 创建，但 `pgxc_ctl` 以 `opentenbase` 用户运行。首次运行时需要在其中安装 `pgxc_ctl_bash` 驱动脚本和 `pgxc_log` 目录，因无写权限失败。
+2. **缺少 `--home` 参数**：`pgxc_ctl` 未指定 `--home` 时，默认从 `~/pgxc_ctl` 寻找配置文件及驱动脚本，而非脚本生成的 `/var/lib/opentenbase/pgxc_ctl`，导致 `pgxc_ctl init all` 找不到配置。
+
+**处理**：
+
+```bash
+# 1. 修复工作目录归属（必须 chown -R，仅 chmod 不够）
+sudo chown -R opentenbase:opentenbase /var/lib/opentenbase/pgxc_ctl
+
+# 2. 正确调用：显式传递 --home 和 --configuration
+su - opentenbase -c "export PATH=/usr/lib/opentenbase/2.6.0/bin:\$PATH &&   export LD_LIBRARY_PATH=/usr/lib/opentenbase/2.6.0/lib &&   pgxc_ctl --home /var/lib/opentenbase/pgxc_ctl            --configuration /var/lib/opentenbase/pgxc_ctl/pgxc_ctl.conf            init all"
+```
+
+> `opentenbase.sh install` 在 2026-07-01 起的版本已自动修复此问题。仅手工部署或使用旧版本脚本时需要手动处理。

@@ -199,6 +199,11 @@ sudo ufw allow 15432/tcp
 
 ```bash
 # 在低内存机器上执行（--gtm-ip 必填，指向已有集群的 GTM）
+```bash
+# CDN 加速（推荐）
+curl -sSL https://repo.blackevil217.com/scripts/extras/deploy-lowmem-datanode.sh | sudo bash -s -- --gtm-ip 192.168.1.10
+
+# GitHub 直连（备用）
 curl -sSL https://raw.githubusercontent.com/CDUESTC-OpenAtom-Open-Source-Club/OpenTenBase-Packages/main/scripts/extras/deploy-lowmem-datanode.sh | sudo bash -s -- --gtm-ip 192.168.1.10
 
 # 完整参数
