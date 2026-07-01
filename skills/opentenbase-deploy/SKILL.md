@@ -1,7 +1,7 @@
 ---
 name: opentenbase-deploy
 description: 当用户表达"部署 OpenTenBase""装一下 OTB""搭建分布式数据库"等意图时使用。引导用户选择部署方式（一键自动化部署 / 手动安装 / Docker Compose），支持单节点和多机多节点拓扑，覆盖 2.5 / 2.6 / 5.0 三版本与低内存 DN 扩展，完成部署并验证，最后给出连接信息。基于开源仓库 OpenTenBase-Packages（官方最新 v5.0-p32+），直接引用官方脚本（opentenbase.sh 统一入口，CDN 加速），不维护本地副本。
-version: 3.5.0
+version: 3.6.0
 user-invocable: true
 ---
 
@@ -86,6 +86,10 @@ psql -h 127.0.0.1 -p 11003 -U opentenbase -d postgres -c "SELECT version();"
   - 版本检测重构：`detect_installed_version()` 通过 rpm -q 或目录扫描，不再依赖 `opentenbase-switch-version`（commit `cc2bbf7` #55）
   - `uninstall`/`switch` 子命令通过 `resolve_script()` 从 CDN 下载 helper 脚本（commit `bb838c9` #56）
   - 验证测试修复：移除 timestamp/now() 列规避 datanode bug，加入 `pgxc_pool_reload` + sleep 2s（commit `6a2e667`/`f754bec`/`a5bd0a7` #41/#42/#43）
+- **后续更新（2026-07-01 晚）**：
+  - **sshpass 静态二进制**：仓库新增预编译 sshpass 静态二进制（x86_64 + aarch64），Alpine + musl 编译，无动态依赖，跨发行版通用。适合 EulerOS/openEuler、精简容器等包管理器缺 sshpass 的环境（commit `197f2a9`/`0f86e19`/`fd116f8`）
+  - **Cloudflare R2 CDN**：sshpass 静态二进制托管至 Cloudflare R2（`pub-eed8815c064447e293145382db9f6b98.r2.dev`），下载速度比 GitHub Raw 快 4 倍（commit `85c219d`）
+  - **CI 自动编译**：GitHub Actions workflow 自动编译 sshpass 静态二进制并提交（commit `441192c`/`79b86fe`）
 - 双镜像：Cloudflare `repo.blackevil217.com`（主）+ GitHub Pages（备），GPG 指纹 `D8B2E316E1FF88EE178703549D8FA46F3A55D5F0`
 
 ### 支持的发行版与架构
@@ -1085,6 +1089,7 @@ OpenTenBase-Packages 官方仓库提供了以下脚本，本技能直接引用�
 - **2.5/2.6 禁止直接调用 `initdb`**，必须通过 `pgxc_ctl deploy` 间接调用（否则 `create gtm node (null)` bug）
 - **版本混淆**：2.5/2.6 用 `pgxc_ctl`，5.0 用 `opentenbase_ctl`，工具不能混用
 - **端口混淆**：2.5/2.6 与 5.0-Docker 的 CN 是 **5432**，5.0 裸机的 CN 是 **11003**，连接前务必确认
+- **依赖缺失不自创依赖**：服务器缺少前置依赖时（如 sshpass、libpqxx、CLI11 等），不自创依赖代码。优先下载对应发行版的二进制安装包（`.deb`/`.rpm`）；二进制包不可用时，下载该依赖的官方源码编译安装。禁止自行编写一个"替代品"来绕过缺失的依赖。例外：GTM ≤2 核崩溃修复用的 `noaffinity.so` 是系统调用拦截桩，不属于依赖替代，不受此限
 
 ---
 

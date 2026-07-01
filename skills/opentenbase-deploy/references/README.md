@@ -42,15 +42,7 @@ Skill 通过 `{baseDir}/references/` 路径引用这些文件。
 
 ## 重要变更记录
 
-### v3.5.0（2026-07-01）
+### v3.6.0（2026-07-01）
 
-- 同步官方仓库 2026-07-01 最新提交（#44–#56）
-- CDN 优先：`opentenbase.sh`/`setup-apt.sh`/`setup-rpm.sh` 改为 CDN 优先下载（`repo.blackevil217.com/scripts/`），GitHub raw 回退
-- 版本显式锁定：安装时 pin 版本号（`dnf install opentenbase-<ver>` / `apt install opentenbase=<ver>`），确保 `--version` 参数生效
-- RPM `--nodeps` 回退链解决非 RHEL 发行版 RHPG 符号依赖问题
-- `pgxc_ctl` 2.5/2.6 修复：`chown -R` 工作目录 + 显式 `--home` 参数
-- 版本检测重构：`detect_installed_version()` 通过 rpm -q 或目录扫描
-- `resolve_script()`：`uninstall`/`switch` 子命令在 curl|bash 下自动从 CDN 下载 helper
-- 日常运维分离：安装后提示明确区分 `opentenbase_ctl`/`pgxc_ctl` 与一键脚本
-- 验证测试修复：移除 timestamp/now() 列、加入 `pgxc_pool_reload` + sleep 2s
-- 新已知问题：pgxc_ctl `--home` 参数说明
+- 同步官方仓库 2026-07-01 晚提交：新增 sshpass 静态二进制（x86_64 + aarch64）、Cloudflare R2 CDN、CI 自动编译
+- 新增红线：依赖缺失不自创依赖（优先二进制包，不自编替代品）
