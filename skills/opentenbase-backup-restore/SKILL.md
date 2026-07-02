@@ -1,6 +1,8 @@
 ---
 name: opentenbase-backup-restore
 description: 规划、检查和执行 OpenTenBase 备份与恢复流程。适用于逻辑备份、恢复演练、备份前检查、备份文件校验、恢复验证和风险说明。默认只读评估；执行 pg_dump、pg_restore、psql restore 或物理恢复前必须获得用户确认。
+version: 1.0.0
+user-invocable: true
 ---
 
 # OpenTenBase 备份与恢复

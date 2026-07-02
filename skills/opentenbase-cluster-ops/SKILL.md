@@ -1,6 +1,8 @@
 ---
 name: opentenbase-cluster-ops
 description: 管理已经安装和初始化完成的 OpenTenBase 集群，完成状态查看、启动、停止和运行验证。
+version: 1.0.0
+user-invocable: true
 ---
 
 # OpenTenBase 集群运维

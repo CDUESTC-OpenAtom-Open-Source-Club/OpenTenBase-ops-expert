@@ -1,6 +1,8 @@
 ---
 name: opentenbase-sql-tuning
 description: 分析和优化 OpenTenBase SQL 性能。适用于慢 SQL、执行计划解读、分布键选择、跨 DN Join、广播/重分布、数据倾斜、索引和统计信息排查。默认只读分析，避免把 OpenTenBase 当单机 PostgreSQL 调优。
+version: 1.0.0
+user-invocable: true
 ---
 
 # OpenTenBase SQL 调优

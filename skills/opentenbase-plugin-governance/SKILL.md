@@ -1,6 +1,8 @@
 ---
 name: opentenbase-plugin-governance
 description: 使用 plugin_ctl 管理 OpenTenBase 插件生命周期。适用于插件发现、创建 SQL-only 或 C 插件、PGXS 编译、分布式文件分发、CREATE EXTENSION 注册、健康检查、回滚和插件治理教学。优先使用用户已有的 plugin_ctl 工具。
+version: 1.0.0
+user-invocable: true
 ---
 
 # OpenTenBase 插件治理

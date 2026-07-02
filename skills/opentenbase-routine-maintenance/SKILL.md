@@ -1,6 +1,8 @@
 ---
 name: opentenbase-routine-maintenance
 description: 设计和执行 OpenTenBase 日常定时运维巡检。适用于每日/每周/月度健康检查、Linux cron 或 systemd timer 方案、巡检脚本规划、备份文件检查、日志检查、资源检查和巡检报告。默认只读，不自动修改 crontab、systemd、数据库或集群状态。
+version: 1.0.0
+user-invocable: true
 ---
 
 # OpenTenBase 日常定时运维

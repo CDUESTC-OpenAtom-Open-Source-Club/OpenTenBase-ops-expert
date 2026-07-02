@@ -1,6 +1,8 @@
 ---
 name: opentenbase-log-error-analysis
 description: 分析 OpenTenBase 日志、启动失败、连接失败、节点异常、管理工具报错和插件/SQL 执行错误。用于用户要求排查报错、查看日志、解释 ERROR/FATAL/WARNING、判断 CN/DN/GTM 或 opentenbase_ctl/pgxc_ctl 问题时。
+version: 1.0.0
+user-invocable: true
 ---
 
 # OpenTenBase 日志与错误分析

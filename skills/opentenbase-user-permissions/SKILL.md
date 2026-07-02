@@ -1,6 +1,8 @@
 ---
 name: opentenbase-user-permissions
 description: 管理 OpenTenBase 的用户、角色、Schema、对象权限和默认权限。适用于只读权限审计、解释权限问题、生成授权或回收计划，以及在用户明确确认后执行 GRANT、REVOKE、CREATE ROLE、ALTER ROLE 等权限操作。
+version: 1.0.0
+user-invocable: true
 ---
 
 # OpenTenBase 用户与权限运维

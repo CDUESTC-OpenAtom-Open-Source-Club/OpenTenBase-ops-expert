@@ -1,6 +1,8 @@
 ---
 name: opentenbase-monitoring-integration
 description: 为已有 OpenTenBase 分布式集群接入 Prometheus、Grafana 和 postgres_exporter 监控。用于用户要求安装监控、采集 CN 指标、配置 Prometheus targets、创建 Grafana 数据源/面板、验证监控是否可用时。
+version: 1.0.0
+user-invocable: true
 ---
 
 # OpenTenBase 监控接入
