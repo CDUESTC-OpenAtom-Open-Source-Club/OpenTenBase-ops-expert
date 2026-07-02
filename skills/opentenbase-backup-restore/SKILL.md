@@ -2,6 +2,8 @@
 name: opentenbase-backup-restore
 description: 规划、检查和执行 OpenTenBase 备份与恢复流程。适用于逻辑备份、恢复演练、备份前检查、备份文件校验、恢复验证和风险说明。默认只读评估；执行 pg_dump、pg_restore、psql restore 或物理恢复前必须获得用户确认。
 version: 1.0.0
+author: CDUESTC OpenAtom Open Source Club
+tools: [shell, filesystem]
 user-invocable: true
 ---
 
@@ -106,6 +108,30 @@ extension 列表
 关键业务 SQL
 pgxc_node 拓扑
 ```
+
+## 使用示例
+
+**示例 1：备份数据库**
+
+> 用户：备份 postgres 数据库，只备结构
+>
+> Agent：好的。将执行 `pg_dump -h <CN_IP> -p <CN_PORT> -U opentenbase -d postgres --schema-only -F c -f postgres_schema.dump`。备份文件将保存在当前目录。确认执行？
+>
+> 用户：确认
+>
+> Agent：（执行备份）✅ 备份完成！文件：`postgres_schema.dump`（大小 256KB），命令退出码 0。
+
+**示例 2：恢复验证**
+
+> 用户：验证下昨天的备份能不能回复
+>
+> Agent：我将创建临时验证库 `verify_restore`，在其中恢复备份并检查对象数、schema 列表和关键表行数。原始数据不受影响。
+>
+> 用户：好
+>
+> Agent：（恢复并验证）✅ 恢复验证通过！对象数 42，5 个 schema，关键表行数匹配。
+
+---
 
 ## 禁止自动执行
 

@@ -2,6 +2,8 @@
 name: opentenbase-monitoring-integration
 description: 为已有 OpenTenBase 分布式集群接入 Prometheus、Grafana 和 postgres_exporter 监控。用于用户要求安装监控、采集 CN 指标、配置 Prometheus targets、创建 Grafana 数据源/面板、验证监控是否可用时。
 version: 1.0.0
+author: CDUESTC OpenAtom Open Source Club
+tools: [shell, filesystem, http]
 user-invocable: true
 ---
 
@@ -70,6 +72,35 @@ curl -s http://127.0.0.1:9090/-/ready
 curl -s 'http://127.0.0.1:9090/api/v1/query?query=otb_pgxc_node_total_value'
 curl -s http://127.0.0.1:3000/api/health
 ```
+
+## 使用示例
+
+**示例 1：接入基础监控**
+
+> 用户：帮我的 OpenTenBase CN 接上 Prometheus + Grafana
+>
+> Agent：好的。先确认：CN 在 192.168.1.10:11003 可用吗？监控组件部署在同一台机器上？
+>
+> 用户：是的，都在这台上
+>
+> Agent：（下载并部署 postgres_exporter、Prometheus、Grafana，配置采集 CN 指标）
+> ✅ 监控已就绪：
+> - postgres_exporter: http://192.168.1.10:9187/metrics
+> - Prometheus: http://192.168.1.10:9090 （targets 全部 UP）
+> - Grafana: http://192.168.1.10:3000 （admin / 初始密码已生成）
+
+**示例 2：检查监控状态**
+
+> 用户：监控还在跑吗？
+>
+> Agent：（检查各组件运行状态和指标）
+> ✅ 全部正常：
+> - postgres_exporter: pg_up=1, scrape_error=0
+> - Prometheus: /-/ready OK
+> - Grafana: database OK
+> - 最新指标：otb_pgxc_node_total_value=3
+
+---
 
 ## 安全边界
 

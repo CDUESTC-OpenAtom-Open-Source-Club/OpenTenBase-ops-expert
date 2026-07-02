@@ -2,6 +2,8 @@
 name: opentenbase-plugin-governance
 description: 使用 plugin_ctl 管理 OpenTenBase 插件生命周期。适用于插件发现、创建 SQL-only 或 C 插件、PGXS 编译、分布式文件分发、CREATE EXTENSION 注册、健康检查、回滚和插件治理教学。优先使用用户已有的 plugin_ctl 工具。
 version: 1.0.0
+author: CDUESTC OpenAtom Open Source Club
+tools: [shell, filesystem]
 user-invocable: true
 ---
 
@@ -134,6 +136,28 @@ REGISTERED     -> 可以业务验证或 report
 BROKEN         -> 先修 manifest、文件或环境
 REMOVED        -> 需要重新 deploy/register
 ```
+
+## 使用示例
+
+**示例 1：查看已安装插件**
+
+> 用户：看看集群装了哪些插件
+>
+> Agent：（通过 plugin_ctl 执行 `list --all`）
+> 已注册插件：
+> - pg_stat_statements（STATUS: REGISTERED）
+> - pg_cron（STATUS: REGISTERED）
+>
+> 其他可用插件：（列出发现目录中的所有插件）
+
+**示例 2：创建并部署新插件**
+
+> 用户：帮我创建一个 SQL-only 插件 my_utils
+>
+> Agent：（通过 plugin_ctl 执行 `new -sql my_utils`，按流程初始化、编译、检查、部署）
+> ✅ 插件 `my_utils` 已创建并部署完成。下一步：`register my_utils` 在数据库中注册。
+
+---
 
 ## 修改性命令确认
 

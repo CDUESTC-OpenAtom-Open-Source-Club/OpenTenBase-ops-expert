@@ -2,6 +2,8 @@
 name: opentenbase-user-permissions
 description: 管理 OpenTenBase 的用户、角色、Schema、对象权限和默认权限。适用于只读权限审计、解释权限问题、生成授权或回收计划，以及在用户明确确认后执行 GRANT、REVOKE、CREATE ROLE、ALTER ROLE 等权限操作。
 version: 1.0.0
+author: CDUESTC OpenAtom Open Source Club
+tools: [shell, filesystem]
 user-invocable: true
 ---
 
@@ -98,6 +100,30 @@ ORDER BY node_name;
 ```
 
 用户确认后才执行。
+
+## 使用示例
+
+**示例 1：审计用户权限**
+
+> 用户：app_user 查不了 orders 表，帮我看看为什么
+>
+> Agent：（执行只读审计）审计发现：`app_user` 角色有 `public` schema 的 USAGE 权限，但 `orders` 表在 `app` schema 下，该角色缺少 `app` schema 的 USAGE 权限。建议：`GRANT USAGE ON SCHEMA app TO app_user;`。需要我执行吗？
+
+**示例 2：创建只读用户**
+
+> 用户：创建一个只读用户 readonly，只能查 current schema 的表
+>
+> Agent：将执行以下计划：
+> 1. `CREATE ROLE readonly WITH LOGIN PASSWORD '<设定密码>';`
+> 2. `GRANT USAGE ON SCHEMA current TO readonly;`
+> 3. `GRANT SELECT ON ALL TABLES IN SCHEMA current TO readonly;`
+> 请提供密码，然后我确认后执行。
+>
+> 用户：密码 ReadOnly123
+>
+> Agent：（执行计划）✅ 只读用户创建完成。
+
+---
 
 ## 禁止自动执行
 

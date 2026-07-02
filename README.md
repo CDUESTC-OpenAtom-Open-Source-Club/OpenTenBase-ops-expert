@@ -82,7 +82,6 @@ workspace/
 ├── memory/
 │   └── YYYY-MM-DD.md           # 运行过程中形成的每日记忆记录
 └── skills/
-    ├── example-skill/          # 新建 Skill 时使用的模板
     ├── linux-ssh-access/
     ├── opentenbase-deploy/
     ├── opentenbase-cluster-ops/
@@ -235,12 +234,10 @@ Skill 不重复编写完整知识百科，而应重点描述：
 
 ## 扩展新的 Skill
 
-项目保留了 `skills/example-skill/` 作为模板。
-
 新增 Skill 时建议：
 
-1. 复制 `example-skill` 并重命名目录；
-2. 修改 `SKILL.md` 中的名称、描述、触发条件和流程；
+1. 在 `skills/` 下创建新目录，名称使用 `a-z0-9-` 格式；
+2. 编写 `SKILL.md`，设置 frontmatter（name、description、version、author、tools、user-invocable）；
 3. 将长篇说明拆到 `references/`；
 4. 将可重复、可解析的操作写入 `scripts/`；
 5. 在 `AGENTS.md` 中增加任务路由；

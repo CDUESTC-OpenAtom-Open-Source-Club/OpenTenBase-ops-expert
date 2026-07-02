@@ -2,6 +2,8 @@
 name: linux-ssh-access
 description: 当用户表达"想连接服务器/虚拟机""帮我 SSH 上去""连一下 Linux"等意图时使用。会一步步引导小白用户提供连接信息，完成首次连接后自动为当前设备配置免密登录。兼容 macOS 与 Linux 运行环境。
 version: 1.2.0
+author: CDUESTC OpenAtom Open Source Club
+tools: [shell, filesystem]
 user-invocable: true
 ---
 
@@ -337,6 +339,28 @@ ssh -o BatchMode=yes -o PubkeyAuthentication=yes \
 1. 用 Paramiko 完成首次连接验证。
 2. 明确告知用户："当前环境缺少 sshpass/expect，无法自动配置免密。建议安装后重新执行，或手动运行 `ssh-copy-id -p <port> <user>@<host>`。"
 3. 不谎称已配置免密。
+
+---
+
+## 使用示例
+
+**示例 1：首次连接服务器**
+
+> 用户：帮我连一下 192.168.1.100，root 用户，密码 mypass123
+>
+> Agent：已收到连接信息，确认：主机 192.168.1.100，用户 root，端口 22，密码 ***。确认无误吗？
+>
+> （用户确认后，Agent 执行连接，成功后自动配置免密密钥）
+
+**示例 2：密钥连接**
+
+> 用户：SSH 连 dev-server，用的是密钥
+>
+> Agent：好的。你的 SSH 密钥在默认路径 `~/.ssh/id_rsa` 吗？端口是多少？
+>
+> 用户：默认路径，端口 2222
+>
+> Agent：（执行 `ssh -o BatchMode=yes -p 2222 user@dev-server`）✅ 连接成功！
 
 ---
 

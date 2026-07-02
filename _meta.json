@@ -1,0 +1,7 @@
+{
+  "version": "1.0.0",
+  "author": "CDUESTC OpenAtom Open Source Club (blackEvil217 / muzimu217)",
+  "repository": "https://github.com/CDUESTC-OpenAtom-Open-Source-Club/OpenTenBase-ops-expert",
+  "tags": ["opentenbase", "database", "ops", "postgresql", "distributed", "deployment", "monitoring"],
+  "license": "MIT-0"
+}

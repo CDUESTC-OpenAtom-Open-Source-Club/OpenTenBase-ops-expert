@@ -2,6 +2,8 @@
 name: opentenbase-sql-tuning
 description: 分析和优化 OpenTenBase SQL 性能。适用于慢 SQL、执行计划解读、分布键选择、跨 DN Join、广播/重分布、数据倾斜、索引和统计信息排查。默认只读分析，避免把 OpenTenBase 当单机 PostgreSQL 调优。
 version: 1.0.0
+author: CDUESTC OpenAtom Open Source Club
+tools: [shell, filesystem]
 user-invocable: true
 ---
 
@@ -100,6 +102,33 @@ CN 是否承担大量汇总或排序
 ```
 
 涉及写操作时，只给计划，等待用户确认。
+
+## 使用示例
+
+**示例 1：分析慢 SQL 执行计划**
+
+> 用户：这条 SQL 跑得很慢，帮我看看
+> ```sql
+> SELECT * FROM orders WHERE user_id = 123;
+> ```
+>
+> Agent：（执行 EXPLAIN 分析）分析结果：
+> - 主要瓶颈：未走分布键，数据分布在所有 DN 但查询只命中一个 DN（数据倾斜）
+> - 建议：如果 WHERE 条件主要按 user_id 过滤，考虑将分布键改为 `DISTRIBUTE BY SHARD(user_id)`
+> - 风险：改分布键需要重分布数据，建议在维护窗口执行
+
+**示例 2：检查跨节点数据流量**
+
+> 用户：为什么这个 JOIN 查询那么慢？
+>
+> Agent：（分析计划发现 `Remote Subquery Scan on all datanodes` 和 `Broadcast` 操作）
+> 结论：小表 `regions` 作为复制表但实际查出 100 万行，触发了广播操作，每次查询都要将 100 万行广播到所有 DN。
+> 建议：
+> 1. 确认 `regions` 表是否应为小表（正常应 <1 万行）
+> 2. 如果数据量确实大，改用 `DISTRIBUTE BY SHARD` 分片存储
+> 3. 加索引优化 JOIN 条件
+
+---
 
 ## 禁止自动执行
 

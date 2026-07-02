@@ -2,6 +2,8 @@
 name: opentenbase-log-error-analysis
 description: 分析 OpenTenBase 日志、启动失败、连接失败、节点异常、管理工具报错和插件/SQL 执行错误。用于用户要求排查报错、查看日志、解释 ERROR/FATAL/WARNING、判断 CN/DN/GTM 或 opentenbase_ctl/pgxc_ctl 问题时。
 version: 1.0.0
+author: CDUESTC OpenAtom Open Source Club
+tools: [shell, filesystem]
 user-invocable: true
 ---
 
@@ -82,5 +84,28 @@ start、stop、restart、init、clean、kill、failover、expand、shrink
 建议下一步：<只读补充检查 或 需用户确认的修复动作>
 未验证项：<仍缺少的证据>
 ```
+
+## 使用示例
+
+**示例 1：定位启动失败原因**
+
+> 用户：CN 起不来，帮我看看日志
+>
+> Agent：（定位 CN 日志，提取最近的 FATAL/ERROR）
+> 关键发现：CN 日志 `/var/lib/opentenbase/install/opentenbase/5.0/data/cn1/pg_log/postgresql-*.log` 中：
+> - `FATAL: could not connect to GTM: Connection refused`
+> 判断：GTM 未启动导致 CN 无法连接。建议先检查 GTM 状态。
+
+**示例 2：排查连接失败**
+
+> 用户：psql 连不上，这是什么错误？
+>
+> Agent：（检查 CN 日志和端口）发现 CN 端口 11003 未监听。进程列表中有显示 CN 进程吗？
+>
+> 用户：没有
+>
+> Agent：CN 进程未运行。建议通过 `opentenbase-cluster-ops` 查看集群状态并启动。
+
+---
 
 不要只凭单条 `ERROR` 下结论。`FATAL: terminating connection due to administrator command` 在正常停止期间可能是预期现象。

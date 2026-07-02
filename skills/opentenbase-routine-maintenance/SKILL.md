@@ -2,6 +2,8 @@
 name: opentenbase-routine-maintenance
 description: 设计和执行 OpenTenBase 日常定时运维巡检。适用于每日/每周/月度健康检查、Linux cron 或 systemd timer 方案、巡检脚本规划、备份文件检查、日志检查、资源检查和巡检报告。默认只读，不自动修改 crontab、systemd、数据库或集群状态。
 version: 1.0.0
+author: CDUESTC OpenAtom Open Source Club
+tools: [shell, filesystem]
 user-invocable: true
 ---
 
@@ -94,6 +96,37 @@ pgxc_node 拓扑
 ```
 
 用户确认后才执行。
+
+## 使用示例
+
+**示例 1：每日巡检**
+
+> 用户：帮我做一次日常巡检
+>
+> Agent：（检查集群状态、资源、备份、日志）
+> ```
+> 每日巡检报告 — 2026-07-02
+> 主机：192.168.1.10
+> 集群状态：✅ running
+> CN：1/1 | DN：1/1 | GTM：1/1
+> 磁盘：/data 67% (30GB/45GB)
+> 内存：5.2GB / 8.0GB
+> 备份：✅ 最近备份 2026-07-01 02:00
+> 日志：无 ERROR/FATAL
+> 结论：正常，无风险项
+> ```
+
+**示例 2：设计定时巡检 cron**
+
+> 用户：帮我设置每天凌晨 2 点自动巡检
+>
+> Agent：建议添加以下 crontab（以 opentenbase 用户执行）：
+> ```
+> 0 2 * * * /usr/local/bin/otb-daily-check.sh
+> ```
+> 巡检脚本内容参考 `references/daily-checklist.md`。需要我帮你生成并部署这个脚本吗？
+
+---
 
 ## 禁止自动执行
 

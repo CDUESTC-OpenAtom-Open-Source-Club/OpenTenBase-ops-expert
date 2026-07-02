@@ -2,6 +2,8 @@
 name: opentenbase-cluster-ops
 description: 管理已经安装和初始化完成的 OpenTenBase 集群，完成状态查看、启动、停止和运行验证。
 version: 1.0.0
+author: CDUESTC OpenAtom Open Source Club
+tools: [shell, filesystem]
 user-invocable: true
 ---
 
@@ -153,6 +155,35 @@ PGCONNECT_TIMEOUT=5 psql -X -w -h <cn_host> -p <cn_port> \
 3. 停止后续状态变更，向用户报告现象和证据。
 
 其他处理方案由用户重新选择并确认。
+
+## 使用示例
+
+**示例 1：查看集群状态**
+
+> 用户：看看集群状态
+>
+> Agent：（通过 SSH 连接服务器，执行 `opentenbase_ctl status`）
+> ```
+> OpenTenBase：正常
+> 目标：192.168.1.10
+> 方式：opentenbase_ctl
+> GTM：1/1
+> CN：1/1
+> DN：1/1
+> CN 连接：成功
+> ```
+
+**示例 2：启动集群**
+
+> 用户：启动 OpenTenBase
+>
+> Agent：检测到集群处于停止状态。将执行 `opentenbase_ctl start`，目标主机 192.168.1.10，运行用户 opentenbase。现在启动？
+>
+> 用户：启动
+>
+> Agent：（执行启动命令）✅ 启动成功，所有节点运行中。
+
+---
 
 ## 安全边界
 
