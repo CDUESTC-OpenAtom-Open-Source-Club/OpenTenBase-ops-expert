@@ -1,7 +1,7 @@
 ---
 name: opentenbase-deploy
 description: 当用户表达"部署 OpenTenBase""装一下 OTB""搭建分布式数据库"等意图时使用。引导用户选择部署方式（一键自动化部署 / 手动安装 / Docker Compose），支持单节点和多机多节点拓扑，覆盖 2.5 / 2.6 / 5.0 三版本与低内存 DN 扩展，完成部署并验证，最后给出连接信息。基于开源仓库 OpenTenBase-Packages（官方最新 v5.0-p32+），直接引用官方脚本（opentenbase.sh 统一入口，CDN 加速），不维护本地副本。
-version: 3.7.0
+version: 3.8.0
 author: CDUESTC OpenAtom Open Source Club
 tools: [shell, filesystem]
 user-invocable: true
@@ -236,6 +236,115 @@ CN 和 DN 都有 **forward manager**（查询转发器），默认绑定 `127.0.
 - **磁盘：最低 2GB，推荐 10GB+**
 - 受支持发行版（见上方「支持的发行版与架构」）
 - 多机部署时：各服务器间网络互通，所有节点使用相同的 SSH 用户名和密码
+
+---
+
+## 生产级前置加固（多机部署必做，单节点可选）
+
+评测反馈表明部署方案常缺这些生产级步骤。以下命令直接给用户，不要省略：
+
+### 1. 内核参数调优
+
+```bash
+# 共享内存和连接数（OpenTenBase 依赖共享内存，默认值不够）
+sudo tee -a /etc/sysctl.conf << 'EOF'
+kernel.shmmax = 137438953472
+kernel.shmall = 33554432
+kernel.shmmni = 4096
+fs.file-max = 76724600
+net.ipv4.ip_local_port_range = 9000 65500
+net.core.rmem_max = 4194304
+net.core.wmem_max = 4194304
+EOF
+sudo sysctl -p
+
+# 文件描述符限制
+sudo tee -a /etc/security/limits.conf << 'EOF'
+opentenbase soft nofile 65536
+opentenbase hard nofile 65536
+opentenbase soft nproc 65536
+opentenbase hard nproc 65536
+EOF
+```
+
+### 2. SELinux 处置
+
+```bash
+# 检查状态
+getenforce
+
+# 如果返回 Enforcing，临时关闭（永久关闭需改 /etc/selinux/config）
+sudo setenforce 0
+
+# 永久关闭（生产环境建议改为 permissive 而非 disabled）
+sudo sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
+```
+
+> **风险提示**：关闭 SELinux 会降低系统安全基线。生产环境建议配置 SELinux 策略允许 OpenTenBase 端口和目录，而非直接关闭。向用户说明此风险。
+
+### 3. 防火墙端口开放
+
+```bash
+# firewalld（RHEL/Rocky/Alma/CentOS）
+sudo firewall-cmd --permanent --add-port=6666/tcp   # GTM
+sudo firewall-cmd --permanent --add-port=11003/tcp  # CN (5.0 裸机)
+sudo firewall-cmd --permanent --add-port=15432/tcp  # DN
+sudo firewall-cmd --permanent --add-port=6669/tcp   # Pooler
+sudo firewall-cmd --permanent --add-port=6670/tcp   # Forward Manager
+sudo firewall-cmd --reload
+
+# ufw（Ubuntu/Debian）
+sudo ufw allow 6666/tcp
+sudo ufw allow 11003/tcp
+sudo ufw allow 15432/tcp
+sudo ufw allow 6669/tcp
+sudo ufw allow 6670/tcp
+
+# iptables（无 firewalld/ufw 的精简系统）
+sudo iptables -I INPUT -p tcp --dport 6666 -j ACCEPT
+sudo iptables -I INPUT -p tcp --dport 11003 -j ACCEPT
+sudo iptables -I INPUT -p tcp --dport 15432 -j ACCEPT
+sudo iptables -I INPUT -p tcp --dport 6669 -j ACCEPT
+sudo iptables -I INPUT -p tcp --dport 6670 -j ACCEPT
+```
+
+> **安全提示**：生产环境不应将数据库端口暴露到公网。建议只对内网网段开放：`firewall-cmd --permanent --add-rich-rule='rule family=ipv4 source address=192.168.1.0/24 port port=11003 protocol=tcp accept'`
+
+### 4. SSH 免密配置（多机部署必做）
+
+`opentenbase_ctl` 通过 SSH 在节点间传输文件和执行命令，必须配置免密。
+
+```bash
+# 在执行部署的机器上（通常是 GTM 所在机器），以 opentenbase 用户执行
+su - opentenbase
+
+# 生成密钥（如果还没有）
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N "" -C "opentenbase@$(hostname)"
+
+# 推送到所有节点（包括本机）
+ssh-copy-id -i ~/.ssh/id_ed25519.pub opentenbase@192.168.1.10  # GTM
+ssh-copy-id -i ~/.ssh/id_ed25519.pub opentenbase@192.168.1.11  # CN
+ssh-copy-id -i ~/.ssh/id_ed25519.pub opentenbase@192.168.1.12  # DN
+
+# 验证免密
+ssh opentenbase@192.168.1.11 "hostname"  # 不应提示密码
+```
+
+### 5. 依赖包安装
+
+```bash
+# RHEL/Rocky/Alma/CentOS
+sudo dnf install -y gcc make libicu-devel openssl-devel zlib-devel \
+  readline-devel pam-devel libxml2-devel libxslt-devel perl-IPC-Run \
+  sshpass
+
+# Ubuntu/Debian
+sudo apt update && sudo apt install -y gcc make libicu-dev libssl-dev \
+  zlib1g-dev libreadline-dev libpam0g-dev libxml2-dev libxslt1-dev \
+  sshpass
+```
+
+> 一键脚本 `opentenbase.sh` 会自动安装 `sshpass` 和 `opentenbase` 主包，但上面的编译依赖在源码编译场景下需要手动安装。
 
 ---
 
