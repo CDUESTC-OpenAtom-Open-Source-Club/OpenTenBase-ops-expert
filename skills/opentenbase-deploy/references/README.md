@@ -15,8 +15,9 @@ Skill 通过 `{baseDir}/references/` 路径引用这些文件。
 | 5 | `cluster-management.md` | 集群管理命令参考 | `pgxc_ctl` / `opentenbase_ctl` 全命令速查 |
 | 6 | `config-reference.md` | 配置参数参考 | INI 参数详解、`pgxc_ctl.conf` 模板、多拓扑示例 |
 | 7 | `troubleshooting.md` | 故障排查 | 已知故障场景及解决方案 |
+| 8 | `os-prerequisites.md` | OS 前置检查与内核调优 | THP/内核参数/ulimit/NTP 体检与建议值，部署地基 |
 
-> 以上 7 篇文档均已完成。
+> 以上 8 篇文档均已完成。
 
 ## 外部参考
 

@@ -1,7 +1,7 @@
 ---
 name: opentenbase-deploy
 description: 当用户表达"部署 OpenTenBase""装一下 OTB""搭建分布式数据库"等意图时使用。引导用户选择部署方式（一键自动化部署 / 手动安装 / Docker Compose），支持单节点和多机多节点拓扑，覆盖 2.5 / 2.6 / 5.0 三版本与低内存 DN 扩展，完成部署并验证，最后给出连接信息。基于开源仓库 OpenTenBase-Packages（官方最新 v5.0-p32+），直接引用官方脚本（opentenbase.sh 统一入口，CDN 加速），不维护本地副本。
-version: 3.7.0
+version: 3.8.0
 author: CDUESTC OpenAtom Open Source Club
 tools: [shell, filesystem]
 user-invocable: true
@@ -236,6 +236,7 @@ CN 和 DN 都有 **forward manager**（查询转发器），默认绑定 `127.0.
 - **磁盘：最低 2GB，推荐 10GB+**
 - 受支持发行版（见上方「支持的发行版与架构」）
 - 多机部署时：各服务器间网络互通，所有节点使用相同的 SSH 用户名和密码
+- **OS 内核调优与时间同步**（生产/多机强烈建议）：透明大页(THP)、`kernel.shmmax/shmall`、`ulimit -n/-u`、**NTP 时间同步**等。分布式部署未做这些会踩雷——尤其 **NTP 不同步会导致 GTM 全局时间戳错乱、分布式事务异常**。详见 `references/os-prerequisites.md`（含一键只读体检脚本 + 建议值 + 逐台检查清单）。
 
 ---
 
@@ -266,6 +267,8 @@ which docker 2>/dev/null && docker --version || echo "无 Docker"
 ```
 
 也可参考官方仓库的 `scripts/opentenbase.sh` 内置环境检查（一键脚本 Step 1 自动完成）。
+
+**生产/多机部署补充体检**：上面只查内存/磁盘/端口。生产或多机拓扑还需过一遍 OS 内核与时间同步体检——读取 `references/os-prerequisites.md`，跑其中的只读体检脚本，重点确认 **THP 已关闭、`shmmax` 足够、`ulimit` 够高、NTP 已同步**。THP 未关或 NTP 不同步是分布式部署最常见的隐性雷。
 
 **硬性拦截**：
 - 内存 < 4GB → 停止部署完整集群，告知"内存不足，建议扩容到 4GB+；若只想加节点可走低内存 DN 方案"

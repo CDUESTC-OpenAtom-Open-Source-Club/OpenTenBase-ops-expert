@@ -1,7 +1,7 @@
 ---
 name: opentenbase-monitoring-integration
 description: 为已有 OpenTenBase 分布式集群接入 Prometheus、Grafana 和 postgres_exporter 监控。用于用户要求安装监控、采集 CN 指标、配置 Prometheus targets、创建 Grafana 数据源/面板、验证监控是否可用时。
-version: 1.0.0
+version: 1.1.0
 author: CDUESTC OpenAtom Open Source Club
 tools: [shell, filesystem, http]
 user-invocable: true
@@ -22,7 +22,7 @@ OpenTenBase CN
 -> Grafana
 ```
 
-第一版只覆盖二进制部署方式、CN 级采集、Prometheus 抓取、Grafana 数据源和基础面板。不默认部署 Docker、node_exporter、Loki、Alertmanager 或 systemd。
+覆盖二进制部署方式、CN 级采集、Prometheus 抓取、Grafana 数据源和面板。基础链路通后，可按需追加核心健康指标（连接数/复制延迟/锁/XID age/长事务/2PC，见 `references/core-metrics-queries.md`）与告警规则。不默认部署 Docker、node_exporter、Loki、Alertmanager 或 systemd。
 
 ## 标准流程
 
@@ -64,7 +64,15 @@ references/postgres-exporter-opentenbase.md
 
 关闭默认 collector，只启用 OpenTenBase 兼容的轻量自定义查询。
 
-5. 验证：
+5. **采集核心健康指标（不要停在"节点计数"）**：基础自定义查询只有节点数/库数等计数指标，看不见业务健康。用户要"能用于生产的监控"、要看连接数/复制延迟/锁/XID age/长事务/2PC 时，读取：
+
+```text
+references/core-metrics-queries.md
+```
+
+追加连接数、长事务、XID 回卷风险、2PC 残留、复制延迟、死元组、库体积等只读指标，并按需配置 Prometheus 告警规则。**注意分布式局限：exporter 连的是 CN，DN 的复制延迟/XID age 需对每个 DN 主节点单独部署 exporter；GTM 无 SQL 接口，靠端口探测补齐。**
+
+6. 验证：
 
 ```bash
 curl -s http://127.0.0.1:<exporter_port>/metrics | grep -E 'pg_up|pg_exporter_last_scrape_error|otb_'
@@ -120,10 +128,11 @@ OpenTenBase 启停
 
 ## 成功标准
 
-- 每个目标 CN 对应一个 postgres_exporter。
+- 每个目标 CN 对应一个 postgres_exporter（生产完整覆盖时每个 DN 主节点也各一个）。
 - exporter `/metrics` 中 `pg_up=1` 且 `pg_exporter_last_scrape_error=0`。
 - Prometheus targets 为 `up`。
 - Prometheus 能查询到 `otb_pgxc_node_total_value`。
+- **核心健康指标可用**（用户要生产级监控时）：连接数、长事务、`otb_database_xid_age`、`otb_prepared_xacts`、`otb_replication` 等已在 `/metrics` 输出，关键告警规则已加载。
 - Grafana `/api/health` 返回 `database: ok`。
 - Grafana 有 Prometheus 数据源和 OpenTenBase dashboard。
 

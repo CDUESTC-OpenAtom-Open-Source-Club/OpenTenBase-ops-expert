@@ -1,7 +1,7 @@
 ---
 name: opentenbase-ops-expert
 description: OpenTenBase 分布式数据库运维专家。覆盖部署、集群启停、备份恢复、监控接入、日志分析、SQL 调优、插件治理、日常巡检、用户权限、Linux SSH 接入十大场景。当用户提到 OpenTenBase、分布式 PostgreSQL、CN/DN/GTM、pgxc_ctl、opentenbase_ctl、跨节点 Join、分布键、postgres_exporter，或需要在 OpenTenBase 上做部署/运维/诊断/调优时触发。执行原则：先只读诊断 → 展示计划 → 确认后执行 → 结果验证，避免临时拼命令造成生产事故。
-version: 1.4.0
+version: 1.5.0
 author: OpenTenBase Ops Expert Contributors
 license: MIT-0
 user-invocable: true
@@ -86,6 +86,8 @@ tools:
 - 事务/2PC 残留、集群健康分层判断、诊断模型 → `skills/opentenbase-log-error-analysis/references/distributed-diagnosis-model.md`
 - XID 回卷、autovacuum 停摆、表膨胀、磁盘满（数据库拒绝写入类故障处置） → `skills/opentenbase-log-error-analysis/references/data-corruption-and-xid.md`
 - 深度健康巡检（XID age/长事务/2PC 残留/复制延迟/膨胀，P0 隐患只读排查） → `skills/opentenbase-routine-maintenance/references/deep-health-check.md`
+- 生产级核心监控指标（连接数/复制延迟/锁/XID age/2PC/长事务采集 + Prometheus 告警规则） → `skills/opentenbase-monitoring-integration/references/core-metrics-queries.md`
+- OS 部署前置（THP/内核参数/ulimit/NTP 体检与建议值，分布式部署地基） → `skills/opentenbase-deploy/references/os-prerequisites.md`
 
 ## 使用示例
 
@@ -134,6 +136,8 @@ Agent（路由到 opentenbase-user-permissions）：
 - **腾讯云 TDSQL-C / CynosDB** → 是不同产品，不要错误映射到 OpenTenBase 命令。
 
 ## 版本
+
+v1.5.0 — 可观测性与部署地基补强。补齐 DBA 二审点名的两个 P0 缺口：监控从"只数节点"升级为生产级核心指标采集（连接数/复制延迟/锁/XID age/2PC/长事务 + Prometheus 告警规则，core-metrics-queries.md），部署新增 OS 前置体检（THP/内核参数/ulimit/NTP 建议值，os-prerequisites.md，杜绝 GTM 时间戳错乱等隐性雷）。至此"敢上生产"的可观测性与部署地基立住。后续版本将补齐 failover/扩缩容 的可执行 runbook。
 
 v1.4.0 — 专业深度补强。针对备份/故障/巡检三类高频场景补齐 P0 可执行知识：备份策略+WAL 归档+PITR+跨节点一致性（backup-strategy-and-pitr.md）、XID 回卷/autovacuum 停摆/表膨胀/磁盘满等"数据库拒绝写入"类故障处置（data-corruption-and-xid.md）、深度健康巡检只读 SQL（deep-health-check.md），三者形成"提前巡检→日志定位→策略恢复"闭环。
 
