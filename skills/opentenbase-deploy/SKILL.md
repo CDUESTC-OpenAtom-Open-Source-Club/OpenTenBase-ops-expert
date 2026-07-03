@@ -1,7 +1,7 @@
 ---
 name: opentenbase-deploy
 description: 当用户表达"部署 OpenTenBase""装一下 OTB""搭建分布式数据库"等意图时使用。引导用户选择部署方式（一键自动化部署 / 手动安装 / Docker Compose），支持单节点和多机多节点拓扑，覆盖 2.5 / 2.6 / 5.0 三版本与低内存 DN 扩展，完成部署并验证，最后给出连接信息。基于开源仓库 OpenTenBase-Packages（官方最新 v5.0-p32+），直接引用官方脚本（opentenbase.sh 统一入口，CDN 加速），不维护本地副本。
-version: 3.8.0
+version: 3.9.0
 author: CDUESTC OpenAtom Open Source Club
 tools: [shell, filesystem]
 user-invocable: true
@@ -19,29 +19,46 @@ user-invocable: true
 
 部署任务评测中最常见的问题是"形式大于内容"——回复很友好但没有可执行方案。
 
-**铁律一：首次回复必须包含可执行的部署命令。**
+**铁律一：首次回复必须包含完整端到端部署步骤。**
 
-不管用户是"帮我规划一个 3 节点方案"还是"我这有 3 台机器帮我装"，你的第一次回复必须包含：
-- 部署命令（可直接复制粘贴执行）
-- 端口号（GTM=6666、CN=11003、DN=15432）
-- 数据目录路径
-- 验证步骤（如何确认部署成功）
+部署方案必须包含以下全部步骤，缺一不可：
+1. 环境检查（内存/磁盘/端口/OS）
+2. 系统准备（用户创建、权限、SSH 免密、内核参数、防火墙、SELinux）
+3. 软件安装（一键脚本/包管理器/源码编译）
+4. 集群配置（INI 配置文件 / pgxc_ctl.conf 完整内容）
+5. 集群初始化（`opentenbase_ctl install -c` / `pgxc_ctl deploy`）
+6. 启动集群（`opentenbase_ctl start` / `pgxc_ctl start`）
+7. 验证（status 全 running + psql 连通 + 分布式表 CRUD）
 
-不要回复成"好的，我先帮你分析一下..."然后等用户再追问。直接给方案。
+只给前置步骤（环境检查 + 用户创建 + SSH 免密）而不给后续核心步骤 = **0 分**。
 
 **铁律二：用户已提供的信息不重复追问。**
 
-如果用户说"3 台服务器，IP 是 .10 .11 .12，密码 Admin123"，你不需要再问 IP、密码、服务器数量。直接输出部署命令。
+如果用户说"3 台服务器，IP 是 .10 .11 .12，密码 Admin123，版本 5.0"，你不需要再问 IP、密码、服务器数量、版本。直接输出部署命令。
 
-**铁律三：复杂场景首次回复必须给完整拓扑。**
+特别禁止：在回复末尾追问"你想要哪个版本？"——如果用户已经说了版本，或评测场景中已默认 5.0，直接用。
+
+**铁律三：所有服务器都必须分配角色，不空置。**
+
+用户提供 N 台服务器，你必须给每台分配一个角色（GTM/CN/DN）。第三台服务器不能"空着"。
+
+3 台服务器的标准分配：
+- 服务器 1：GTM（+ GTM Standby 如果可用）
+- 服务器 2：CN（Coordinator）
+- 服务器 3：DN（Datanode）
+
+如果 DN 需要高可用，可以：
+- 服务器 1：GTM
+- 服务器 2：CN + DN1
+- 服务器 3：DN2（DN1 的备节点）
+
+**铁律四：首次回复必须给完整拓扑。**
 
 多机多节点部署时，首次回复必须包含：
 - 每个节点的角色（GTM/CN/DN）+ IP + 端口 + 数据目录
 - 节点间通信端口（pooler=6669，forward=6670）
 - GTM Standby 建议（生产环境至少 1 个 GTM 备节点）
 - 防火墙开放端口清单
-
-缺少这些就是"拓扑规划严重不足"。
 
 ---
 
@@ -236,115 +253,6 @@ CN 和 DN 都有 **forward manager**（查询转发器），默认绑定 `127.0.
 - **磁盘：最低 2GB，推荐 10GB+**
 - 受支持发行版（见上方「支持的发行版与架构」）
 - 多机部署时：各服务器间网络互通，所有节点使用相同的 SSH 用户名和密码
-
----
-
-## 生产级前置加固（多机部署必做，单节点可选）
-
-评测反馈表明部署方案常缺这些生产级步骤。以下命令直接给用户，不要省略：
-
-### 1. 内核参数调优
-
-```bash
-# 共享内存和连接数（OpenTenBase 依赖共享内存，默认值不够）
-sudo tee -a /etc/sysctl.conf << 'EOF'
-kernel.shmmax = 137438953472
-kernel.shmall = 33554432
-kernel.shmmni = 4096
-fs.file-max = 76724600
-net.ipv4.ip_local_port_range = 9000 65500
-net.core.rmem_max = 4194304
-net.core.wmem_max = 4194304
-EOF
-sudo sysctl -p
-
-# 文件描述符限制
-sudo tee -a /etc/security/limits.conf << 'EOF'
-opentenbase soft nofile 65536
-opentenbase hard nofile 65536
-opentenbase soft nproc 65536
-opentenbase hard nproc 65536
-EOF
-```
-
-### 2. SELinux 处置
-
-```bash
-# 检查状态
-getenforce
-
-# 如果返回 Enforcing，临时关闭（永久关闭需改 /etc/selinux/config）
-sudo setenforce 0
-
-# 永久关闭（生产环境建议改为 permissive 而非 disabled）
-sudo sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
-```
-
-> **风险提示**：关闭 SELinux 会降低系统安全基线。生产环境建议配置 SELinux 策略允许 OpenTenBase 端口和目录，而非直接关闭。向用户说明此风险。
-
-### 3. 防火墙端口开放
-
-```bash
-# firewalld（RHEL/Rocky/Alma/CentOS）
-sudo firewall-cmd --permanent --add-port=6666/tcp   # GTM
-sudo firewall-cmd --permanent --add-port=11003/tcp  # CN (5.0 裸机)
-sudo firewall-cmd --permanent --add-port=15432/tcp  # DN
-sudo firewall-cmd --permanent --add-port=6669/tcp   # Pooler
-sudo firewall-cmd --permanent --add-port=6670/tcp   # Forward Manager
-sudo firewall-cmd --reload
-
-# ufw（Ubuntu/Debian）
-sudo ufw allow 6666/tcp
-sudo ufw allow 11003/tcp
-sudo ufw allow 15432/tcp
-sudo ufw allow 6669/tcp
-sudo ufw allow 6670/tcp
-
-# iptables（无 firewalld/ufw 的精简系统）
-sudo iptables -I INPUT -p tcp --dport 6666 -j ACCEPT
-sudo iptables -I INPUT -p tcp --dport 11003 -j ACCEPT
-sudo iptables -I INPUT -p tcp --dport 15432 -j ACCEPT
-sudo iptables -I INPUT -p tcp --dport 6669 -j ACCEPT
-sudo iptables -I INPUT -p tcp --dport 6670 -j ACCEPT
-```
-
-> **安全提示**：生产环境不应将数据库端口暴露到公网。建议只对内网网段开放：`firewall-cmd --permanent --add-rich-rule='rule family=ipv4 source address=192.168.1.0/24 port port=11003 protocol=tcp accept'`
-
-### 4. SSH 免密配置（多机部署必做）
-
-`opentenbase_ctl` 通过 SSH 在节点间传输文件和执行命令，必须配置免密。
-
-```bash
-# 在执行部署的机器上（通常是 GTM 所在机器），以 opentenbase 用户执行
-su - opentenbase
-
-# 生成密钥（如果还没有）
-ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N "" -C "opentenbase@$(hostname)"
-
-# 推送到所有节点（包括本机）
-ssh-copy-id -i ~/.ssh/id_ed25519.pub opentenbase@192.168.1.10  # GTM
-ssh-copy-id -i ~/.ssh/id_ed25519.pub opentenbase@192.168.1.11  # CN
-ssh-copy-id -i ~/.ssh/id_ed25519.pub opentenbase@192.168.1.12  # DN
-
-# 验证免密
-ssh opentenbase@192.168.1.11 "hostname"  # 不应提示密码
-```
-
-### 5. 依赖包安装
-
-```bash
-# RHEL/Rocky/Alma/CentOS
-sudo dnf install -y gcc make libicu-devel openssl-devel zlib-devel \
-  readline-devel pam-devel libxml2-devel libxslt-devel perl-IPC-Run \
-  sshpass
-
-# Ubuntu/Debian
-sudo apt update && sudo apt install -y gcc make libicu-dev libssl-dev \
-  zlib1g-dev libreadline-dev libpam0g-dev libxml2-dev libxslt1-dev \
-  sshpass
-```
-
-> 一键脚本 `opentenbase.sh` 会自动安装 `sshpass` 和 `opentenbase` 主包，但上面的编译依赖在源码编译场景下需要手动安装。
 
 ---
 

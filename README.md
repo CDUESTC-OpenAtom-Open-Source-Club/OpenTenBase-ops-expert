@@ -70,19 +70,17 @@ AGENTS.md 判断任务类型
 ```text
 workspace/
 ├── README.md                   # 项目说明
-├── AGENTS.md                   # 总体操作规则、任务识别和 Skill 路由
-├── SOUL.md                     # 专家性格、表达方式和行为边界
-├── USER.md                     # 用户信息、称呼和偏好
-├── IDENTITY.md                 # 专家名称、定位和 Vibe
-├── TOOLS.md                    # Skill、工具及使用边界
-├── BOOT.md                     # 启动时的环境自检清单
-├── BOOTSTRAP.md                # 首次初始化流程
-├── HEARTBEAT.md                # 可选的周期任务说明
-├── MEMORY.md                   # OpenTenBase 长期知识和跨会话记忆
-├── memory/
-│   └── YYYY-MM-DD.md           # 运行过程中形成的每日记忆记录
+├── SKILL.md                    # 专家入口 Skill（路由表 + 执行原则）
+├── AGENTS.md                   # 三条铁律 + 任务路由速查
+├── SOUL.md                     # 专家性格、表达方式和行为边界（静态）
+├── USER.md                     # 用户信息（静态）
+├── IDENTITY.md                 # 专家名称、定位和 Vibe（静态）
+├── TOOLS.md                    # Skill、工具及使用边界（静态）
+├── MEMORY.md                   # OpenTenBase 核心知识库（静态参考）
+├── LICENSE                     # MIT-0 许可证
+├── _meta.json                  # 专家包元数据
+├── CHANGELOG.md                # 版本变更记录
 └── skills/
-    ├── example-skill/          # 新建 Skill 时使用的模板
     ├── linux-ssh-access/
     ├── opentenbase-deploy/
     ├── opentenbase-cluster-ops/
@@ -99,16 +97,13 @@ workspace/
 
 | 文件 | 作用 |
 |---|---|
-| `AGENTS.md` | 专家的总规则，负责识别用户意图并路由到合适的 Skill |
-| `SOUL.md` | 规定语气、个性、教学方式和安全边界 |
-| `USER.md` | 保存用户身份、称呼、环境和表达偏好 |
-| `IDENTITY.md` | 专家的身份卡片 |
-| `TOOLS.md` | 记录已有 Skill、命令行工具和使用限制 |
-| `MEMORY.md` | 保存跨任务长期有效的 OpenTenBase 核心知识 |
-| `memory/` | 保存运行过程中形成的每日记录 |
-| `BOOT.md` | 每次启动时检查工作区、Skill 和运行环境 |
-| `BOOTSTRAP.md` | 首次使用时完成初始化，完成后可按实际需要处理 |
-| `HEARTBEAT.md` | 定义可选的周期性检查任务 |
+| `SKILL.md` | 专家入口，路由表 + 执行原则 + 使用示例 |
+| `AGENTS.md` | 三条铁律 + 任务路由速查 |
+| `SOUL.md` | 规定语气、个性、教学方式和安全边界（静态，运行时不读取） |
+| `USER.md` | 用户身份、称呼、环境和表达偏好（静态，运行时不读取） |
+| `IDENTITY.md` | 专家的身份卡片（静态，运行时不读取） |
+| `TOOLS.md` | 记录已有 Skill、命令行工具和使用限制（静态，运行时不读取） |
+| `MEMORY.md` | OpenTenBase 核心知识库（静态参考，按需查阅） |
 
 ## Skill 标准结构
 

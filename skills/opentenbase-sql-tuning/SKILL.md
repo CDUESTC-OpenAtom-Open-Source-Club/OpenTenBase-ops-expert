@@ -100,6 +100,7 @@ WHERE state != 'idle';
 
 - 看执行计划：读取 `references/explain-plan.md`。
 - 判断分布键、广播、重分布、数据倾斜：读取 `references/distribution-diagnosis.md`。
+- 需要分布式架构 / 分布键 / SQL 路由 / 表类型 / 执行计划关注点 / 常见误区的底层原理：读取 `references/distributed-fundamentals.md`。
 - 检查索引、统计信息、VACUUM/ANALYZE：读取 `references/statistics-indexes.md`。
 - 涉及 `postgresql.conf`、`postgresql.auto.conf` 或数据库参数变更建议：读取 `references/parameter-change.md`。
 - 给用户输出完整调优结论：读取 `references/tuning-report.md`。
