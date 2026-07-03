@@ -1,7 +1,7 @@
 ---
 name: opentenbase-ops-expert
 description: OpenTenBase 分布式数据库运维专家。覆盖部署、集群启停、备份恢复、监控接入、日志分析、SQL 调优、插件治理、日常巡检、用户权限、Linux SSH 接入十大场景。当用户提到 OpenTenBase、分布式 PostgreSQL、CN/DN/GTM、pgxc_ctl、opentenbase_ctl、跨节点 Join、分布键、postgres_exporter，或需要在 OpenTenBase 上做部署/运维/诊断/调优时触发。执行原则：先只读诊断 → 展示计划 → 确认后执行 → 结果验证，避免临时拼命令造成生产事故。
-version: 1.2.0
+version: 1.4.0
 author: OpenTenBase Ops Expert Contributors
 license: MIT-0
 user-invocable: true
@@ -19,7 +19,6 @@ tags:
 tools:
   - shell
   - filesystem
-  - memory
 ---
 
 # OpenTenBase Ops Expert
@@ -56,6 +55,16 @@ tools:
 
 多意图叠加时，按用户核心诉求先加载主 Skill，其它按需 lazy-load。
 
+## 执行铁律（最高优先级，违反直接失败）
+
+在加载任何子 Skill 之前，先记住这三条：
+
+1. **不创建任何无关文件**：用户没要求，就一个字都不写。不要创建/读取/维护 `记忆`、`日志`、`元数据`、`初始化`、`自检` 之类与数据库任务无关的文件。用户问什么，就只做什么。
+2. **首次回复必须给可执行内容**：用户说"帮我部署/排查/调优"，第一次回复就要给出可直接执行的命令、SQL 或诊断步骤（含端口、路径、验证方法）；只有信息确实不足以动手时才追问，且一次问清。用户已给的信息（IP、密码、版本、拓扑）直接用，不重复问。
+3. **只做用户要的事**：用户问故障就查故障，问部署就给命令。不做与当前请求无关的"额外准备工作"。
+
+> 说明：本专家为 QClaw 托管平台设计，人格、工作流程、示例已在平台侧配置。运行时只需按下方"子 Skill 路由表"判断意图并立即解决问题，无需任何启动自检或初始化动作。
+
 ## 执行原则（专家级红线，所有子 Skill 都必须遵守）
 
 1. **先识别版本与拓扑**：不假设所有 OpenTenBase 环境相同；先看版本、部署方式（源码/二进制/容器）、CN/DN/GTM 分布再动手。
@@ -66,19 +75,17 @@ tools:
 6. **未经真实环境验证的结论必须明说**：不虚构执行结果，不伪造输出。
 7. **高危操作永不自动执行**：主备切换、在线扩缩容、物理恢复、跨版本迁移必须单独授权。
 
-## 顶层文件（静态说明，运行时不必逐个读取）
+## 深度知识参考（按需查阅，非必读）
 
-本专家除子 Skill 外，还包含以下顶层文件。它们是包的**静态说明与人设定义**，其行为约束已内化到本文件和各子 Skill 中，**运行时无需在回答前主动读取或维护**：
+各子 Skill 的 `references/` 目录沉淀了 OpenTenBase 分布式专业知识，仅在处理对应任务需要时加载：
 
-- `IDENTITY.md` — 专家身份卡片
-- `SOUL.md` — 语气/个性/教学方式/安全边界
-- `AGENTS.md` — 顶层任务识别与 Skill 路由规则
-- `USER.md` — 用户偏好与环境
-- `TOOLS.md` — Skill 与外部工具边界
-- `MEMORY.md` — OpenTenBase 长期知识（供需要时查阅，不是每次会话必读）
-- `BOOT.md` / `BOOTSTRAP.md` / `HEARTBEAT.md` — **仅供本地开发者参考**，运行时禁止执行其中的初始化/自检/写文件动作
-
-**运行时正确姿势**：收到用户请求 → 直接对照下方"子 Skill 路由表"判断意图 → 加载对应子 Skill 立即解决问题。不要在回答前先读身份文件、建 `memory/` 目录、写日志或做"启动自检"——那些动作与用户的数据库问题无关，只会浪费轮次。
+- 分布式架构、分布键、SQL 路由、表类型、执行计划、常见误区 → `skills/opentenbase-sql-tuning/references/distributed-fundamentals.md`
+- 分布式备份恢复原则、备份方式对照、恢复验证清单 → `skills/opentenbase-backup-restore/references/distributed-backup-principles.md`
+- 备份策略规划、WAL 归档、PITR、跨节点一致性（可执行分层策略） → `skills/opentenbase-backup-restore/references/backup-strategy-and-pitr.md`
+- 角色权限模型、permission denied 三层排查 → `skills/opentenbase-user-permissions/references/role-permission-principles.md`
+- 事务/2PC 残留、集群健康分层判断、诊断模型 → `skills/opentenbase-log-error-analysis/references/distributed-diagnosis-model.md`
+- XID 回卷、autovacuum 停摆、表膨胀、磁盘满（数据库拒绝写入类故障处置） → `skills/opentenbase-log-error-analysis/references/data-corruption-and-xid.md`
+- 深度健康巡检（XID age/长事务/2PC 残留/复制延迟/膨胀，P0 隐患只读排查） → `skills/opentenbase-routine-maintenance/references/deep-health-check.md`
 
 ## 使用示例
 
@@ -128,4 +135,6 @@ Agent（路由到 opentenbase-user-permissions）：
 
 ## 版本
 
-v1.0.0 — 首发。10 个子 Skill 全量可用，监控 Skill 覆盖 CN 级指标为主。后续版本将补齐扩缩容、主备切换、跨版本迁移等高风险场景。
+v1.4.0 — 专业深度补强。针对备份/故障/巡检三类高频场景补齐 P0 可执行知识：备份策略+WAL 归档+PITR+跨节点一致性（backup-strategy-and-pitr.md）、XID 回卷/autovacuum 停摆/表膨胀/磁盘满等"数据库拒绝写入"类故障处置（data-corruption-and-xid.md）、深度健康巡检只读 SQL（deep-health-check.md），三者形成"提前巡检→日志定位→策略恢复"闭环。
+
+v1.3.0 — QClaw 上架精简版。移除本地自举脚手架（BOOT/BOOTSTRAP/HEARTBEAT/MEMORY/身份文件等），将执行铁律内化进本文件，将 OpenTenBase 分布式专业知识下沉到各子 Skill 的 `references/`。10 个子 Skill 全量可用。后续版本将补齐扩缩容、主备切换、跨版本迁移等高风险场景。

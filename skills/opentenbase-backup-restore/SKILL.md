@@ -1,7 +1,7 @@
 ---
 name: opentenbase-backup-restore
 description: 规划、检查和执行 OpenTenBase 备份与恢复流程。适用于逻辑备份、恢复演练、备份前检查、备份文件校验、恢复验证和风险说明。默认只读评估；执行 pg_dump、pg_restore、psql restore 或物理恢复前必须获得用户确认。
-version: 1.0.0
+version: 1.1.0
 author: CDUESTC OpenAtom Open Source Club
 tools: [shell, filesystem]
 user-invocable: true
@@ -33,6 +33,7 @@ su - <opentenbase_user>
 - 优先使用 OpenTenBase 自带版本的 `pg_dump`、`pg_restore`、`psql`。
 - 逻辑备份通过 CN 执行；不要直接从 DN 当作业务备份入口。
 - 生产恢复、覆盖恢复、物理恢复、PITR、删除或替换数据目录都属于高风险操作，必须等待用户明确确认。
+- 当用户要求"制定备份策略/方案"时，不要只回答 `pg_dumpall` 定时任务。一套完整策略至少覆盖分层备份（逻辑 + 物理基础备份 + WAL 归档）、RTO/RPO、跨节点一致性（barrier）、保留策略与恢复演练；详见 `references/backup-strategy-and-pitr.md`。
 
 ## 选择 reference
 
@@ -40,6 +41,8 @@ su - <opentenbase_user>
 - 逻辑备份和恢复：读取 `references/logical-backup.md`。
 - 恢复演练与验证：读取 `references/restore-verify.md`。
 - 物理备份、PITR 和高风险边界：读取 `references/physical-and-risk.md`。
+- 分布式备份恢复原则、备份方式对照、恢复验证清单：读取 `references/distributed-backup-principles.md`。
+- 制定备份策略、WAL 归档配置、pg_basebackup、PITR 恢复框架、跨节点一致性(barrier)：读取 `references/backup-strategy-and-pitr.md`。
 
 ## 标准流程
 
@@ -130,6 +133,21 @@ pgxc_node 拓扑
 > 用户：好
 >
 > Agent：（恢复并验证）✅ 恢复验证通过！对象数 42，5 个 schema，关键表行数匹配。
+
+**示例 3：制定备份策略**
+
+> 用户：帮我给生产集群制定一套备份策略
+>
+> Agent：生产库建议三层叠加，不要只靠定时逻辑备份：
+> - **L2 物理基础备份**：每周对各 CN/DN 执行 `pg_basebackup` 全量基线，RTO 低。
+> - **L3 WAL 归档**：每节点开启 `archive_mode`，WAL 持续归档到独立存储，把 RPO 压到分钟级。
+> - **L4 一致性点**：每小时 `CREATE BARRIER`，PITR 时所有节点恢复到同一 barrier，保证跨分片一致；同时备份 GTM 目录与 `pgxc_node` 拓扑。
+> - **L1 逻辑备份**：每日 `pg_dumpall` 作为对象级找回与迁移补充。
+> 再配上保留策略、归档失败告警（监控 `pg_stat_archiver.failed_count`）和每季度一次恢复演练。需要我先做只读评估（版本/拓扑/数据量/空间）来落地具体参数吗？
+>
+> 用户：好，先评估
+>
+> Agent：（只读采集版本、`pgxc_node` 拓扑、各节点数据量与备份盘空间，输出可执行的分层备份配置）
 
 ---
 

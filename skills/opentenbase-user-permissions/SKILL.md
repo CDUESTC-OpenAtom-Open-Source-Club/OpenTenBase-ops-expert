@@ -38,6 +38,7 @@ su - <opentenbase_user>
 - 只读审计、排查“能否登录/能否访问对象”：读取 `references/audit.md`。
 - 需要创建用户、角色、授权或回收权限：读取 `references/grant-revoke.md`。
 - 需要解释 PostgreSQL/OpenTenBase 角色模型：读取 `references/role-model.md`。
+- 分布式权限原则、permission denied 三层排查、授权收敛安全实践：读取 `references/role-permission-principles.md`。
 - 涉及登录来源、认证方式、`pg_hba.conf` 或 `pg_ident.conf`：读取 `references/auth-config.md`。
 
 ## 标准流程

@@ -1,7 +1,7 @@
 ---
 name: opentenbase-log-error-analysis
 description: 分析 OpenTenBase 日志、启动失败、连接失败、节点异常、管理工具报错和插件/SQL 执行错误。用于用户要求排查报错、查看日志、解释 ERROR/FATAL/WARNING、判断 CN/DN/GTM 或 opentenbase_ctl/pgxc_ctl 问题时。
-version: 1.1.0
+version: 1.2.0
 author: CDUESTC OpenAtom Open Source Club
 tools: [shell, filesystem]
 user-invocable: true
@@ -128,7 +128,7 @@ tail -n 100 <log_file>
 
 5. **关联判断**：
 
-读取 `references/error-patterns.md`。把日志时间、节点名、节点角色、端口、进程和连接结果对齐后再下结论。
+读取 `references/error-patterns.md`。把日志时间、节点名、节点角色、端口、进程和连接结果对齐后再下结论。涉及事务/2PC 残留、集群健康分层判断、跨节点诊断模型时，读取 `references/distributed-diagnosis-model.md`。若日志出现 `must be vacuumed` / `wraparound` / `No space left` 等**数据库拒绝写入类**故障（XID 回卷、autovacuum 停摆、表膨胀、磁盘/WAL 满），读取 `references/data-corruption-and-xid.md`。
 
 ---
 

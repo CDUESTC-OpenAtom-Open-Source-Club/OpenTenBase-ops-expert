@@ -1,7 +1,7 @@
 ---
 name: opentenbase-routine-maintenance
 description: 设计和执行 OpenTenBase 日常定时运维巡检。适用于每日/每周/月度健康检查、Linux cron 或 systemd timer 方案、巡检脚本规划、备份文件检查、日志检查、资源检查和巡检报告。默认只读，不自动修改 crontab、systemd、数据库或集群状态。
-version: 1.0.0
+version: 1.1.0
 author: CDUESTC OpenAtom Open Source Club
 tools: [shell, filesystem]
 user-invocable: true
@@ -29,6 +29,7 @@ su - <opentenbase_user>
 ## 选择 reference
 
 - 每日巡检项：读取 `references/daily-checklist.md`。
+- 深度健康巡检（XID age/autovacuum/长事务/2PC 残留/复制延迟/膨胀等 P0 隐患，只读）：读取 `references/deep-health-check.md`。
 - 每周/月度运维项：读取 `references/weekly-monthly.md`。
 - Linux 定时任务设计：读取 `references/linux-scheduling.md`。
 - 巡检报告格式：读取 `references/report-template.md`。
