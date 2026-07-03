@@ -75,9 +75,11 @@ workspace/
 ├── USER.md                     # 用户信息、称呼和偏好
 ├── IDENTITY.md                 # 专家名称、定位和 Vibe
 ├── TOOLS.md                    # Skill、工具及使用边界
-├── BOOT.md                     # 启动时的环境自检清单
-├── BOOTSTRAP.md                # 首次初始化流程
+├── BOOT.md                     # 启动时的最小自检清单
 ├── HEARTBEAT.md                # 可选的周期任务说明
+├── LICENSE                     # MIT-0 许可证
+├── _meta.json                  # 专家包元数据
+├── CHANGELOG.md                # 版本变更记录
 ├── MEMORY.md                   # OpenTenBase 长期知识和跨会话记忆
 ├── memory/
 │   └── YYYY-MM-DD.md           # 运行过程中形成的每日记忆记录
@@ -105,8 +107,7 @@ workspace/
 | `TOOLS.md` | 记录已有 Skill、命令行工具和使用限制 |
 | `MEMORY.md` | 保存跨任务长期有效的 OpenTenBase 核心知识 |
 | `memory/` | 保存运行过程中形成的每日记录 |
-| `BOOT.md` | 每次启动时检查工作区、Skill 和运行环境 |
-| `BOOTSTRAP.md` | 首次使用时完成初始化，完成后可按实际需要处理 |
+| `BOOT.md` | 每次启动时的最小自检清单（不创建文件） |
 | `HEARTBEAT.md` | 定义可选的周期性检查任务 |
 
 ## Skill 标准结构

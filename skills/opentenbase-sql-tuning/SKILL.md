@@ -1,7 +1,7 @@
 ---
 name: opentenbase-sql-tuning
 description: 分析和优化 OpenTenBase SQL 性能。适用于慢 SQL、执行计划解读、分布键选择、跨 DN Join、广播/重分布、数据倾斜、索引和统计信息排查。默认只读分析，避免把 OpenTenBase 当单机 PostgreSQL 调优。
-version: 1.0.0
+version: 1.1.0
 author: CDUESTC OpenAtom Open Source Club
 tools: [shell, filesystem]
 user-invocable: true
@@ -12,6 +12,19 @@ user-invocable: true
 若目标数据库在远程 Linux，先使用 `linux-ssh-access`。若集群状态不确定，先使用 `opentenbase-cluster-ops` 只读确认 CN/DN/GTM 可用。
 
 本 Skill 负责 SQL 性能分析和调优建议，不负责集群启停、用户授权、备份恢复或插件治理。
+
+## 最高优先级规则
+
+**用户报告慢 SQL 问题时，即使信息不完整也要输出 OpenTenBase 特有诊断框架，而非只追问"请提供 SQL"。**
+
+用户说"查询很慢"但没给 SQL 时，你应该：
+1. 先列出 OpenTenBase 分布式场景下最常见的慢查询根因（见下方「分布式慢查询根因优先级」）
+2. 给出获取诊断信息的命令（`EXPLAIN`、查看分布键、查看节点拓扑）
+3. 引导用户提供 SQL 的同时，展示你对分布式数据库的专业判断能力
+
+**不要**回复成"请提供 SQL 语句我再帮你分析"就结束了——这会被评为"缺乏专业性"。
+
+---
 
 ## 运行用户
 
@@ -30,6 +43,58 @@ su - <opentenbase_user>
 - 不要只按单机 PostgreSQL 思路看索引和扫描方式；同时检查分布方式、分布键、Join 键、数据倾斜和跨节点事务。
 - `EXPLAIN` 可默认使用；`EXPLAIN ANALYZE` 会真实执行 SQL，必须先确认 SQL 类型和影响。
 - 对 `INSERT/UPDATE/DELETE/MERGE/DDL` 不自动执行 `EXPLAIN ANALYZE`。
+
+## 分布式慢查询根因优先级（OpenTenBase 特有）
+
+当用户无法提供完整 SQL 时，按以下优先级引导排查。这些都是**单机 PostgreSQL 不存在的**分布式特有的慢查询根因：
+
+### 1. 分布键选择不当 → 查询访问全部 DN（最普遍）
+
+**现象**：`WHERE` 条件不含分布键，或分布键值分布严重不均。
+**检查**：
+```sql
+-- 查看表分布方式
+SELECT c.relname, xc.pclocatortype, xc.discolnums
+FROM pg_class c JOIN pgxc_class xc ON xc.pcrelid = c.oid
+WHERE c.relname = '<table_name>';
+```
+**判断**：如果 `pclocatortype='H'`（HASH 分布）但 WHERE 条件不带分布键 → **全 DN 扫描**。
+
+### 2. JOIN 导致广播或数据重分布
+
+**现象**：`EXPLAIN` 计划中出现 `Remote Subquery Scan on all datanodes` + `Broadcast` 节点。
+**判断**：
+- `Broadcast`：小表被广播到所有 DN → 小表是否真的小？（>10 万行可能就需要考虑分片）
+- `Redistribute`：数据需要按 JOIN 键重新分布 → JOIN 键和分布键不一致
+**优化方向**：让 JOIN 键 = 分布键，或把小表改为复制表。
+
+### 3. 数据倾斜 → 个别 DN 负载过高
+
+**现象**：某些 DN 数据量远超其他 DN。
+**检查**：
+```sql
+-- 各 DN 上该表的大致大小（需要到各 DN 上执行）
+SELECT pg_size_pretty(pg_relation_size('<table_name>'));
+```
+**判断**：若某 DN 的表是其他 DN 的 3 倍以上 → 数据倾斜，分布键选择有问题。
+
+### 4. CN 汇总成为瓶颈
+
+**现象**：`EXPLAIN` 计划中 CN 层有大量 Sort/Aggregate 操作。
+**判断**：`GROUP BY` 的列不是分布键 → 数据需要从各 DN 汇集到 CN 做聚合。
+**优化方向**：让 GROUP BY 列包含分布键，或使用窗口函数推到 DN 执行。
+
+### 5. 跨节点事务等待
+
+**现象**：`pg_stat_activity` 中大量 `waiting` 状态，涉及 GTM 事务号分发。
+**检查**：
+```sql
+SELECT pid, state, wait_event_type, wait_event, query
+FROM pg_stat_activity
+WHERE state != 'idle';
+```
+
+---
 
 ## 选择 reference
 

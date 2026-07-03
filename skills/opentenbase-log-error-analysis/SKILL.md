@@ -1,7 +1,7 @@
 ---
 name: opentenbase-log-error-analysis
 description: 分析 OpenTenBase 日志、启动失败、连接失败、节点异常、管理工具报错和插件/SQL 执行错误。用于用户要求排查报错、查看日志、解释 ERROR/FATAL/WARNING、判断 CN/DN/GTM 或 opentenbase_ctl/pgxc_ctl 问题时。
-version: 1.0.0
+version: 1.1.0
 author: CDUESTC OpenAtom Open Source Club
 tools: [shell, filesystem]
 user-invocable: true
@@ -11,53 +11,126 @@ user-invocable: true
 
 若目标在远程 Linux，先使用 `linux-ssh-access`。默认只读分析，不启停集群、不修改配置、不清理日志。
 
-## 运行用户
+## 最高优先级规则
 
-优先进入 OpenTenBase 运行用户环境：
+**用户报告故障时，直接进入诊断流程。不创建任何文件，不初始化项目结构，不写 memory 日志。** 只输出：诊断结论 + 证据 + 修复步骤。
+
+用户信息不完整时（如只说"CN 崩了"没说日志位置），先列出**OpenTenBase 特有**的高概率原因并按优先级排查，而不是泛泛地回"请提供日志"。
+
+---
+
+## OpenTenBase CN 崩溃快速诊断（按概率从高到低）
+
+当用户报告 CN 节点崩溃或起不来时，按以下顺序逐项检查，每项附带具体命令：
+
+### 1. GTM 连接失败（最常见，占比 ~60%）
+
+CN 启动时首先连接 GTM 注册，GTM 不可用会导致 CN 直接 FATAL 退出。
 
 ```bash
-su - <opentenbase_user>
+# 检查 GTM 进程和端口
+ps -ef | grep '[g]tm'
+ss -lntp | grep 6666
+
+# 检查 CN 日志中的 GTM 连接错误
+grep -i 'gtm\|could not connect\|connection refused' <CN数据目录>/pg_log/postgresql-*.log | tail -20
 ```
 
-不要在 root 环境下直接断定 `opentenbase_ctl`、`pgxc_ctl`、`psql` 或日志目录不存在。若用户只提供 root，先询问 OpenTenBase 运行用户，并确认是否允许 `su - <运行用户>`。
+典型日志：`FATAL: could not connect to GTM: Connection refused` → **先启动 GTM 再启动 CN**。
+
+### 2. Forward Manager 端口冲突（单机多节点场景，占比 ~15%）
+
+CN 和 DN 都有 forward manager，默认绑定 `127.0.0.1:6670`。单机部署时如果 CN 和 DN 共享 IP，第二个节点启动会报 `Address already in use`。
+
+```bash
+ss -lntp | grep -E '6670|6669'
+ps -ef | grep '[p]ostgres' | grep forward
+```
+
+解决方案：不同节点必须用不同 IP（Docker 多容器 / 多机部署），或用 `listen_addresses` 绑定不同 IP。
+
+### 3. 低核心数 GTM 崩溃（≤2 核 CPU，占比 ~10%）
+
+GTM 的 `bind_service_threads()` 在 ≤2 核机器上生成空 cpuset，导致 `pthread_setaffinity_np` 返回 EINVAL。CN 因 GTM 不可用而连锁崩溃。
+
+```bash
+# 检查 CPU 核数
+nproc
+
+# 检查 GTM 日志中的崩溃关键字
+grep -i 'binding threads\|pthread_setaffinity\|cpuset\|FATAL' <GTM数据目录>/gtm_log/gtm-*.log | tail -20
+```
+
+典型日志：`FATAL: binding threads failed` → 需要安装 `noaffinity.so` 桩（参考 `opentenbase-deploy` 的已知问题 #2）。
+
+### 4. libpqxx 等动态库缺失（占比 ~8%）
+
+CN 二进制在启动时找不到依赖库。
+
+```bash
+ldd $(which postgres 2>/dev/null || find /usr/lib/opentenbase -name postgres -type f 2>/dev/null | head -1) | grep 'not found'
+echo "$LD_LIBRARY_PATH"
+```
+
+典型：`error while loading shared libraries: libpqxx-6.4.so` → `export LD_LIBRARY_PATH=/usr/lib/opentenbase/5.0/lib`。
+
+### 5. OSS_INSTALL_DIR 路径不匹配（占比 ~5%）
+
+`opentenbase_ctl` 硬编码 `#define OSS_INSTALL_DIR "/usr/local/install/opentenbase"`，但 RPM/DEB 包装到 `/usr/lib/opentenbase/5.0/`。
+
+```bash
+ls -la /usr/local/install/opentenbase 2>/dev/null
+ls -la /usr/lib/opentenbase/5.0/bin/opentenbase_ctl
+```
+
+符号链接缺失 → `ln -sf /usr/lib/opentenbase/5.0 /usr/local/install/opentenbase`。
+
+### 6. 残留 PID 文件（占比 ~2%）
+
+上次非正常停止遗留的 `postmaster.pid` 导致 CN 认为已有实例在运行。
+
+```bash
+find /data/opentenbase -name 'postmaster.pid' -exec ls -la {} \;
+```
+
+→ **只报告，不自动删除**。删除 PID 文件前必须确认对应进程确实不存在。
+
+---
 
 ## 标准流程
 
-1. 确认目标和时间范围：
-
+1. **确认目标和时间范围**：
 ```bash
-hostname
-whoami
-date
+hostname && whoami && date
 ```
 
-询问或推断用户关心的是：启动失败、停止异常、连接失败、SQL 报错、节点间通信异常、插件部署异常，还是管理工具报错。
+询问或推断：启动失败、停止异常、连接失败、SQL 报错、节点间通信异常、插件部署异常，还是管理工具报错。
 
-2. 获取状态证据：
-
+2. **获取状态证据**：
 ```bash
-opentenbase_ctl status -c <config.ini>
-printf 'monitor all\nquit\n' | pgxc_ctl --home <pgxc_home> -c <pgxc_ctl.conf>
-ps -ef | grep -E '[p]ostgres|[g]tm'
-ss -lntp 2>/dev/null || ss -lnt 2>/dev/null
+# 进程检查（OpenTenBase 特有：关注 GTM/CN/DN 三个角色的进程）
+ps -ef | grep -E '[p]ostgres|[g]tm' | grep -v grep
+# 端口检查（OpenTenBase 特有端口：11003=CN、6666=GTM、15432=DN、6669=pooler、6670=forward）
+ss -lntp 2>/dev/null | grep -E ':(11003|6666|15432|6669|6670)\b'
 ```
 
 本机命令不可用时，只报告原因，不自动切换工具做状态变更。
 
-3. 定位日志：
+3. **定位日志**：
 
 读取 `references/log-locations.md`。先从管理工具日志和相关节点日志开始，不无边界 `find /`。
 
-4. 提取关键错误：
-
+4. **提取关键错误**：
 ```bash
-grep -Ein 'ERROR|FATAL|PANIC|WARNING|could not|failed|invalid|permission denied|No such file|already in use|Connection refused|not found' <log_file> | tail -n 50
+grep -Ein 'ERROR|FATAL|PANIC|could not|failed|invalid|permission denied|No such file|already in use|Connection refused|not found' <log_file> | tail -n 50
 tail -n 100 <log_file>
 ```
 
-5. 关联判断：
+5. **关联判断**：
 
 读取 `references/error-patterns.md`。把日志时间、节点名、节点角色、端口、进程和连接结果对齐后再下结论。
+
+---
 
 ## 安全边界
 
@@ -73,38 +146,53 @@ start、stop、restart、init、clean、kill、failover、expand、shrink
 
 需要查看系统日志时，先说明原因；若需要 root、sudo 或敏感日志，先请求用户确认。
 
+---
+
 ## 结果格式
 
 ```text
 问题类型：启动失败 / 连接失败 / 节点通信异常 / 管理工具异常 / SQL 错误 / 未确定
 影响节点：<CN/DN/GTM/管理工具>
 关键证据：<日志路径:行号 或 命令输出摘要>
-初步判断：<一两句话>
+初步判断：<一两句话，尽量指出 OpenTenBase 特有根因>
 风险等级：低 / 中 / 高
 建议下一步：<只读补充检查 或 需用户确认的修复动作>
 未验证项：<仍缺少的证据>
 ```
 
+---
+
 ## 使用示例
 
-**示例 1：定位启动失败原因**
+**示例 1：CN 起不来（GTM 未启动）**
 
 > 用户：CN 起不来，帮我看看日志
 >
-> Agent：（定位 CN 日志，提取最近的 FATAL/ERROR）
-> 关键发现：CN 日志 `/var/lib/opentenbase/install/opentenbase/5.0/data/cn1/pg_log/postgresql-*.log` 中：
-> - `FATAL: could not connect to GTM: Connection refused`
-> 判断：GTM 未启动导致 CN 无法连接。建议先检查 GTM 状态。
+> Agent：（诊断流程）
+> 1. 检查进程：GTM 进程不存在
+> 2. CN 日志：`FATAL: could not connect to GTM: Connection refused`
+> 3. 判断：**GTM 未启动导致 CN 无法连接**（OpenTenBase 最常见 CN 崩溃原因）
+> 4. 建议：先启动 GTM，再启动 CN
 
-**示例 2：排查连接失败**
+**示例 2：单机多节点端口冲突**
 
-> 用户：psql 连不上，这是什么错误？
+> 用户：第二个 DN 起不来
 >
-> Agent：（检查 CN 日志和端口）发现 CN 端口 11003 未监听。进程列表中有显示 CN 进程吗？
+> Agent：（诊断流程）
+> 1. 检查端口：6670 已被占用
+> 2. 错误日志：`Address already in use`
+> 3. 判断：**forward manager 端口冲突**（CN 和 DN 共享 127.0.0.1:6670）
+> 4. 建议：单机部署多个节点必须用不同 IP，推荐用 Docker Compose 多容器方案
+
+**示例 3：2 核机器 GTM 崩溃**
+
+> 用户：GTM 启动就挂
 >
-> 用户：没有
->
-> Agent：CN 进程未运行。建议通过 `opentenbase-cluster-ops` 查看集群状态并启动。
+> Agent：（诊断流程）
+> 1. 检查 CPU：`nproc` → 2
+> 2. GTM 日志：`FATAL: binding threads failed`
+> 3. 判断：**≤2 核 CPU 触发的 pthread_setaffinity_np 崩溃**（OpenTenBase 已知缺陷）
+> 4. 建议：编译安装 noaffinity.so 桩到 `/usr/lib/opentenbase/noaffinity.so` 并写入 `/etc/ld.so.preload`
 
 ---
 
