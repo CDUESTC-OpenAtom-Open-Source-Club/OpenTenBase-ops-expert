@@ -2,7 +2,7 @@
 
 一个面向 **QClaw 工作区** 的 OpenTenBase 专家 Agent 项目，目标是让用户通过自然语言完成 OpenTenBase 的部署、连接、集群操作、备份恢复、权限管理、SQL 调优、插件治理、监控接入与日常巡检。
 
-项目采用“长期记忆 + 任务路由 + 独立 Skill”的结构：顶层文件负责专家身份、行为规则和长期知识，`skills/` 中的每个 Skill 负责一类可执行任务。
+项目采用"长期记忆 + 任务路由 + 独立 Skill"的结构：顶层文件负责专家身份、行为规则和长期知识，`skills/` 中的每个 Skill 负责一类可执行任务。
 
 > 当前项目仍在持续迭代。涉及生产环境、数据修改、恢复、权限变更和集群状态变更时，请先核对实际版本、拓扑和命令，再执行操作。
 
@@ -52,16 +52,16 @@ AGENTS.md 判断任务类型
 示例：
 
 ```text
-“帮我启动 OpenTenBase 的 CN 节点”
+"帮我启动 OpenTenBase 的 CN 节点"
 → opentenbase-cluster-ops
 
-“备份 postgres 数据库并验证备份文件”
+"备份 postgres 数据库并验证备份文件"
 → opentenbase-backup-restore
 
-“为什么这个用户能连接数据库却查不了表？”
+"为什么这个用户能连接数据库却查不了表？"
 → opentenbase-user-permissions
 
-“帮我分析这条 SQL 为什么访问了全部 DN”
+"帮我分析这条 SQL 为什么访问了全部 DN"
 → opentenbase-sql-tuning
 ```
 
@@ -75,15 +75,14 @@ workspace/
 ├── USER.md                     # 用户信息、称呼和偏好
 ├── IDENTITY.md                 # 专家名称、定位和 Vibe
 ├── TOOLS.md                    # Skill、工具及使用边界
-├── BOOT.md                     # 启动时的最小自检清单
+├── BOOT.md                     # 启动时的环境自检清单
+├── BOOTSTRAP.md                # 首次初始化流程
 ├── HEARTBEAT.md                # 可选的周期任务说明
-├── LICENSE                     # MIT-0 许可证
-├── _meta.json                  # 专家包元数据
-├── CHANGELOG.md                # 版本变更记录
 ├── MEMORY.md                   # OpenTenBase 长期知识和跨会话记忆
 ├── memory/
 │   └── YYYY-MM-DD.md           # 运行过程中形成的每日记忆记录
 └── skills/
+    ├── example-skill/          # 新建 Skill 时使用的模板
     ├── linux-ssh-access/
     ├── opentenbase-deploy/
     ├── opentenbase-cluster-ops/
@@ -107,7 +106,8 @@ workspace/
 | `TOOLS.md` | 记录已有 Skill、命令行工具和使用限制 |
 | `MEMORY.md` | 保存跨任务长期有效的 OpenTenBase 核心知识 |
 | `memory/` | 保存运行过程中形成的每日记录 |
-| `BOOT.md` | 每次启动时的最小自检清单（不创建文件） |
+| `BOOT.md` | 每次启动时检查工作区、Skill 和运行环境 |
+| `BOOTSTRAP.md` | 首次使用时完成初始化，完成后可按实际需要处理 |
 | `HEARTBEAT.md` | 定义可选的周期性检查任务 |
 
 ## Skill 标准结构
@@ -235,10 +235,12 @@ Skill 不重复编写完整知识百科，而应重点描述：
 
 ## 扩展新的 Skill
 
+项目保留了 `skills/example-skill/` 作为模板。
+
 新增 Skill 时建议：
 
-1. 在 `skills/` 下创建新目录，名称使用 `a-z0-9-` 格式；
-2. 编写 `SKILL.md`，设置 frontmatter（name、description、version、author、tools、user-invocable）；
+1. 复制 `example-skill` 并重命名目录；
+2. 修改 `SKILL.md` 中的名称、描述、触发条件和流程；
 3. 将长篇说明拆到 `references/`；
 4. 将可重复、可解析的操作写入 `scripts/`；
 5. 在 `AGENTS.md` 中增加任务路由；

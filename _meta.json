@@ -1,7 +1,45 @@
 {
-  "version": "1.1.0",
-  "author": "CDUESTC OpenAtom Open Source Club (blackEvil217 / muzimu217)",
-  "repository": "https://github.com/CDUESTC-OpenAtom-Open-Source-Club/OpenTenBase-ops-expert",
-  "tags": ["opentenbase", "database", "ops", "postgresql", "distributed", "deployment", "monitoring"],
-  "license": "MIT-0"
+  "name": "opentenbase-ops-expert",
+  "displayName": "OpenTenBase Ops Expert",
+  "version": "1.2.0",
+  "description": "面向 OpenTenBase 分布式数据库的运维专家包，覆盖部署、集群运维、备份恢复、监控接入、日志分析、SQL 调优、插件治理、日常巡检、用户权限、SSH 接入十大 Skill，先只读诊断再确认执行，降低模型临时拼命令的风险。",
+  "author": "OpenTenBase Ops Expert Contributors",
+  "license": "MIT-0",
+  "repository": "https://github.com/OpenTenBase/OpenTenBase-ops-expert",
+  "homepage": "https://github.com/OpenTenBase/OpenTenBase-ops-expert",
+  "tags": [
+    "opentenbase",
+    "database",
+    "postgresql",
+    "distributed",
+    "ops",
+    "devops",
+    "sre",
+    "monitoring",
+    "backup",
+    "sql-tuning"
+  ],
+  "category": "database-ops",
+  "skills": [
+    "linux-ssh-access",
+    "opentenbase-deploy",
+    "opentenbase-cluster-ops",
+    "opentenbase-backup-restore",
+    "opentenbase-monitoring-integration",
+    "opentenbase-log-error-analysis",
+    "opentenbase-sql-tuning",
+    "opentenbase-plugin-governance",
+    "opentenbase-routine-maintenance",
+    "opentenbase-user-permissions"
+  ],
+  "entry": {
+    "skill": "SKILL.md",
+    "identity": "IDENTITY.md",
+    "soul": "SOUL.md",
+    "boot": "BOOT.md",
+    "agents": "AGENTS.md"
+  },
+  "engines": {
+    "claw": ">=1.0.0"
+  }
 }
