@@ -1,0 +1,11 @@
+.codebuddy/
+.DS_Store
+__pycache__/
+*.pyc
+.workbuddy/
+.idea/
+.vscode/
+*.log
+# memory 每日记录文件（模板已 git 跟踪，实际内容不跟踪）
+memory/*.md
+!memory/YYYY-MM-DD.md
