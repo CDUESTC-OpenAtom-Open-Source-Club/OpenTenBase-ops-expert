@@ -13,23 +13,79 @@ metadata:
 
 若目标在远程 Linux，先使用 `linux-ssh-access`。默认只读分析，不启停集群、不修改配置、不清理日志。
 
-## 最高优先级规则
+## 最高优先级规则（强制）
 
-**用户报告故障时，直接进入诊断流程。不说"我是XX专家"、不介绍技能体系、不解释路由过程。只在对话中输出：诊断结论 + 证据 + 修复步骤。**
+**【禁止事项】- 首轮必须遵守：**
 
-**信息收集策略：**
+❌ **禁止创建文件**：除非用户明确说"写文件/保存报告/生成脚本"，**禁止创建任何文件**，包括但不限于：
+- ❌ _meta.json、BOOT.md、CHANGELOG.md、MEMORY.md、README.md
+- ❌ 启动文档、变更记录、临时脚本、诊断报告、日志摘要文件
+- ❌ 任何元数据文件、记忆记录、与当前任务无关的文件
 
-- 用户**已提供日志内容**时：直接分析日志，定位根因，给出修复命令。
-- 用户**还没提供日志**但描述了故障现象时：先给出**需要检查的内容清单**（具体命令 + 日志路径），等用户提供日志后再下结论。不要在没看到日志的情况下给出冗长的诊断报告。
-- 用户信息不完整时（如只说"CN 崩了"没说日志位置），列出需要检查的命令和日志路径，让用户执行后把输出贴回来。
+❌ **禁止冗长输出**：首轮最多 1 句初判、1 个命令块、6 条判断点。不初始化项目、不写文件、不输出装饰性符号。
 
-**禁止臆造数据：** 不要编造"占比 60%""概率最高"等没有统计依据的数字。可以用"常见原因""优先排查"等定性描述。
+❌ **禁止臆造数据**：不编造"占比60%"、"概率最高"等无统计依据数字。用"常见原因"、"优先排查"等定性描述。
 
-**零文件规则：** 日志错误分析只输出对话内容和命令。除非用户明确说"写文件/保存报告/生成脚本"，禁止创建或更新任何与当前任务无关的文件，包括元数据、启动文档、变更记录、临时脚本、日志摘要文件和记忆记录。
+❌ **禁止反问式敷衍**：用户没给日志时，不只追问日志路径；必须先给出**最小采集命令**（含pgxc_ctl状态、GTM检查、2PC检查），再让用户贴回。
 
-**首轮必须给命令：** 用户没给日志时，不只追问日志；先给最小采集命令，再让用户贴回输出。
+✅ **首轮直接给命令**：用户报告故障 → 直接给出OpenTenBase分布式诊断命令（含pgxc_ctl、GTM、2PC检查）。
 
-**紧急场景简洁规则：** 首轮最多 1 句初判、1 个命令块、6 条以内判断点。不要初始化项目、不要写文件、不要输出装饰性符号。
+---
+
+**信息收集策略（首轮）：**
+
+- 用户**已提供日志**：直接分析，定位根因，给出修复命令。
+- 用户**未提供日志**：先给出**分布式诊断命令清单**（见下方），等用户贴回输出后再下结论。
+
+---
+
+**首轮最小命令（OpenTenBase特有诊断）：**
+
+```bash
+# 1. pgxc_ctl集群状态（优先）
+export PATH=/var/lib/opentenbase/install/opentenbase/5.0/bin:$PATH
+pgxc_ctl monitor all 2>&1 | head -50
+
+# 2. GTM进程和连通性（CN/DN依赖GTM）
+ps -ef | grep '[g]tm' && ss -lntp | grep 6666
+
+# 3. CN/DN节点拓扑和状态（分布式诊断必须）
+psql -h 127.0.0.1 -p 11003 -U opentenbase -d postgres \
+  -c "SELECT node_name,node_type,node_host,node_port,node_state FROM pgxc_node;"
+
+# 4. 2PC残留事务检查（跨节点事务悬挂）
+psql -h 127.0.0.1 -p 11003 -U opentenbase -d postgres \
+  -c "SELECT gid,prepared,owner,database FROM pg_prepared_xacts;"
+
+# 5. 进程和端口（标准端口：GTM=6666、CN=11003、DN=15432）
+ps -ef | grep -E '[g]tm|[p]ostgres' | grep -v grep | wc -l
+ss -lntp | grep -E '6666|11003|15432|6669|6670'
+
+# 6. 日志关键字提取（各节点）
+tail -n 50 /data/opentenbase/gtm*/gtm_log/*.log | grep -Ei 'FATAL|PANIC|binding|pthread'
+tail -n 50 /data/opentenbase/cn*/pg_log/*.log | grep -Ei 'FATAL|ERROR|could not connect'
+tail -n 50 /data/opentenbase/dn*/pg_log/*.log | grep -Ei 'FATAL|PANIC|WAL|invalid'
+```
+
+**分布式诊断核心判断点：**
+- `pgxc_node`有节点状态≠`ready` → 该节点异常
+- GTM进程不存在或日志有FATAL → **先处理GTM**（CN/DN依赖GTM）
+- `pg_prepared_xacts`有残留 → **先清理2PC**（不能直接重启）
+- 2核CPU且GTM日志有`binding threads failed` → 需要 noaffinity.so
+
+---
+
+**响应格式（强制）：**
+
+```text
+问题：<启动失败 / GTM异常 / 2PC残留 / 端口冲突 / 资源不足>
+证据：<命令输出摘要或日志路径:行号>
+判断：<1-2句，OpenTenBase特有根因>
+风险：<低/中/高>
+下一步：<需要用户贴回的输出或确认修复动作>
+```
+
+**字数控制：首轮回复控制在150字以内（不含命令块）。**
 
 ---
 
